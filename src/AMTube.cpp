@@ -1,6 +1,5 @@
 // AMTube - YouTube Lite for R36S
-// Architecture: Zero Dependency (SDL2 core only, stb headers embedded)
-// Font: stb_truetype.h | Image: stb_image.h
+// Zero Dependency: stb_truetype + stb_image, no SDL2_ttf/SDL2_image
 
 #include <SDL2/SDL.h>
 #include <iostream>
@@ -9,12 +8,9 @@
 #include <string>
 #include <vector>
 #include <cstdlib>
-#include <cstring>
-#include <cmath>
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
-
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
@@ -22,409 +18,258 @@
 #define RES_PATH "./res"
 #endif
 
-const int SCREEN_WIDTH  = 640;
-const int SCREEN_HEIGHT = 480;
+const int W = 640, H = 480;
 
-// ─── STB Font Wrapper ───────────────────────────────────────────────────────
+// ── STB Font ─────────────────────────────────────────────────────────────────
 class CustomFont {
 public:
     SDL_Texture* atlas = nullptr;
-    stbtt_bakedchar cdata[96];
-    int tex_w = 512, tex_h = 512;
-    float size = 20.0f;
+    stbtt_bakedchar cd[96];
+    int tw = 512, th = 512;
+    float sz = 20.0f;
 
-    bool load(SDL_Renderer* renderer, const std::string& path, float font_size) {
-        size = font_size;
-        std::ifstream file(path, std::ios::binary | std::ios::ate);
-        if (!file.is_open()) {
-            std::cerr << "[C++ ERROR] Cannot open font: " << path << std::endl;
-            return false;
-        }
-        std::streamsize sz = file.tellg();
-        file.seekg(0, std::ios::beg);
-        std::vector<unsigned char> buffer(sz);
-        if (!file.read((char*)buffer.data(), sz)) return false;
+    bool load(SDL_Renderer* r, const std::string& path, float s) {
+        sz = s;
+        std::ifstream f(path, std::ios::binary | std::ios::ate);
+        if (!f.is_open()) { std::cerr << "[ERR] Font: " << path << std::endl; return false; }
+        auto len = f.tellg(); f.seekg(0);
+        std::vector<unsigned char> buf(len);
+        f.read((char*)buf.data(), len);
 
-        std::vector<unsigned char> bitmap(tex_w * tex_h);
-        stbtt_BakeFontBitmap(buffer.data(), 0, font_size, bitmap.data(), tex_w, tex_h, 32, 96, cdata);
+        std::vector<unsigned char> bm(tw*th);
+        stbtt_BakeFontBitmap(buf.data(), 0, s, bm.data(), tw, th, 32, 96, cd);
 
-        std::vector<unsigned char> rgba(tex_w * tex_h * 4, 255);
-        for (int i = 0; i < tex_w * tex_h; i++) {
-            rgba[i * 4 + 3] = bitmap[i];
-        }
+        std::vector<unsigned char> rgba(tw*th*4, 255);
+        for (int i = 0; i < tw*th; i++) rgba[i*4+3] = bm[i];
 
-        SDL_Surface* surface = SDL_CreateRGBSurfaceFrom(rgba.data(), tex_w, tex_h, 32, tex_w * 4,
-            0x000000FF, 0x0000FF00, 0x00FF0000, 0xFF000000);
-        if (!surface) return false;
-        atlas = SDL_CreateTextureFromSurface(renderer, surface);
-        SDL_FreeSurface(surface);
+        SDL_Surface* sf = SDL_CreateRGBSurfaceFrom(rgba.data(), tw, th, 32, tw*4,
+            0xFF,0xFF00,0xFF0000,0xFF000000);
+        if (!sf) return false;
+        atlas = SDL_CreateTextureFromSurface(r, sf);
+        SDL_FreeSurface(sf);
         SDL_SetTextureBlendMode(atlas, SDL_BLENDMODE_BLEND);
-        std::cerr << "[C++ DEBUG] Font loaded: " << path << " size=" << font_size << std::endl;
         return atlas != nullptr;
     }
 
-    void renderText(SDL_Renderer* renderer, float x, float y, const std::string& text, SDL_Color color) {
+    void draw(SDL_Renderer* r, float x, float y, const std::string& txt, SDL_Color c) {
         if (!atlas) return;
-        SDL_SetTextureColorMod(atlas, color.r, color.g, color.b);
-        SDL_SetTextureAlphaMod(atlas, color.a);
-        for (unsigned char c : text) {
-            if (c >= 32 && c < 128) {
-                stbtt_aligned_quad q;
-                stbtt_GetBakedQuad(cdata, tex_w, tex_h, c - 32, &x, &y, &q, 1);
-                SDL_Rect src = {(int)(q.s0*tex_w),(int)(q.t0*tex_h),(int)((q.s1-q.s0)*tex_w),(int)((q.t1-q.t0)*tex_h)};
-                SDL_Rect dst = {(int)q.x0,(int)q.y0,(int)(q.x1-q.x0),(int)(q.y1-q.y0)};
-                SDL_RenderCopy(renderer, atlas, &src, &dst);
-            }
+        SDL_SetTextureColorMod(atlas, c.r, c.g, c.b);
+        SDL_SetTextureAlphaMod(atlas, c.a);
+        for (unsigned char ch : txt) {
+            if (ch < 32 || ch >= 128) continue;
+            stbtt_aligned_quad q;
+            stbtt_GetBakedQuad(cd, tw, th, ch-32, &x, &y, &q, 1);
+            SDL_Rect s={int(q.s0*tw),int(q.t0*th),int((q.s1-q.s0)*tw),int((q.t1-q.t0)*th)};
+            SDL_Rect d={int(q.x0),int(q.y0),int(q.x1-q.x0),int(q.y1-q.y0)};
+            SDL_RenderCopy(r, atlas, &s, &d);
         }
     }
 
-    void renderTextWrapped(SDL_Renderer* renderer, float x, float y, const std::string& text,
-                           SDL_Color color, int maxWidth) {
+    void drawWrap(SDL_Renderer* r, float x, float y, const std::string& txt, SDL_Color c, int maxW) {
         if (!atlas) return;
-        SDL_SetTextureColorMod(atlas, color.r, color.g, color.b);
-        SDL_SetTextureAlphaMod(atlas, color.a);
-        float lineX = x, lineY = y, startX = x;
-        float lineH = size + 2.0f;
-
-        std::istringstream iss(text);
-        std::string word;
-        bool first = true;
+        SDL_SetTextureColorMod(atlas, c.r, c.g, c.b);
+        SDL_SetTextureAlphaMod(atlas, c.a);
+        float lx=x, ly=y, sx=x, lh=sz+2;
+        std::istringstream iss(txt);
+        std::string word; bool first=true;
         while (std::getline(iss, word, ' ')) {
-            float wordW = 0, spaceW = 0;
-            float dx = 0, dy = 0;
-            for (unsigned char c : word) {
-                if (c >= 32 && c < 128) {
-                    stbtt_aligned_quad q;
-                    stbtt_GetBakedQuad(cdata, tex_w, tex_h, c-32, &dx, &dy, &q, 1);
-                }
+            float ww=0, spw=0, dx=0, dy=0;
+            for (unsigned char ch:word) if(ch>=32&&ch<128){stbtt_aligned_quad q;stbtt_GetBakedQuad(cd,tw,th,ch-32,&dx,&dy,&q,1);}
+            ww=dx;
+            if (!first){dx=0;dy=0;stbtt_aligned_quad q;stbtt_GetBakedQuad(cd,tw,th,' '-32,&dx,&dy,&q,1);spw=dx;}
+            if (!first && (lx-sx+spw+ww)>maxW){ly+=lh;lx=sx;}
+            else if(!first){stbtt_aligned_quad q;stbtt_GetBakedQuad(cd,tw,th,' '-32,&lx,&ly,&q,1);}
+            for (unsigned char ch:word) {
+                if(ch<32||ch>=128) continue;
+                stbtt_aligned_quad q;stbtt_GetBakedQuad(cd,tw,th,ch-32,&lx,&ly,&q,1);
+                SDL_Rect s={int(q.s0*tw),int(q.t0*th),int((q.s1-q.s0)*tw),int((q.t1-q.t0)*th)};
+                SDL_Rect d={int(q.x0),int(q.y0),int(q.x1-q.x0),int(q.y1-q.y0)};
+                SDL_RenderCopy(r, atlas, &s, &d);
             }
-            wordW = dx;
-            if (!first) {
-                dx = 0; dy = 0;
-                stbtt_aligned_quad q;
-                stbtt_GetBakedQuad(cdata, tex_w, tex_h, ' '-32, &dx, &dy, &q, 1);
-                spaceW = dx;
-            }
-            if (!first && (lineX - startX + spaceW + wordW) > maxWidth) {
-                lineY += lineH; lineX = startX;
-            } else if (!first) {
-                stbtt_aligned_quad q;
-                stbtt_GetBakedQuad(cdata, tex_w, tex_h, ' '-32, &lineX, &lineY, &q, 1);
-            }
-            for (unsigned char c : word) {
-                if (c >= 32 && c < 128) {
-                    stbtt_aligned_quad q;
-                    stbtt_GetBakedQuad(cdata, tex_w, tex_h, c-32, &lineX, &lineY, &q, 1);
-                    SDL_Rect src = {(int)(q.s0*tex_w),(int)(q.t0*tex_h),(int)((q.s1-q.s0)*tex_w),(int)((q.t1-q.t0)*tex_h)};
-                    SDL_Rect dst = {(int)q.x0,(int)q.y0,(int)(q.x1-q.x0),(int)(q.y1-q.y0)};
-                    SDL_RenderCopy(renderer, atlas, &src, &dst);
-                }
-            }
-            first = false;
+            first=false;
         }
     }
-
-    ~CustomFont() { if (atlas) SDL_DestroyTexture(atlas); }
+    ~CustomFont() { if(atlas) SDL_DestroyTexture(atlas); }
 };
 
-// ─── Data ───────────────────────────────────────────────────────────────────
-struct YouTubeVideo {
-    std::string id, title, author, local_thumb;
-    SDL_Texture* texture = nullptr;
-};
+// ── Data ──────────────────────────────────────────────────────────────────────
+struct Video { std::string id,title,author,thumb; SDL_Texture* tex=nullptr; };
+enum State { LIST, MENU, PLAYING };
 
-enum AppState { VIEW_LIST, VIEW_MENU, PLAYING_VIDEO };
+SDL_Window*   win  = nullptr;
+SDL_Renderer* ren  = nullptr;
+CustomFont    fBig, fSm;
+std::vector<Video> vids;
+int sel=0; bool run=true;
+std::string cat="Subscribed";
+State st=LIST;
+std::vector<std::string> menu={"Subscribed","Trending","Lofi Music","Gaming","News","Exit"};
+int mi=0;
 
-// ─── Globals ─────────────────────────────────────────────────────────────────
-SDL_Window*   window   = nullptr;
-SDL_Renderer* renderer = nullptr;
-CustomFont    fontTitle, fontAuthor;
-
-std::vector<YouTubeVideo> videoList;
-int  selectedIndex   = 0;
-bool isRunning       = true;
-std::string currentCategory = "Subscribed";
-AppState    state    = VIEW_LIST;
-
-std::vector<std::string> menuItems = {
-    "Subscribed", "Trending", "Lofi Music", "Gaming", "News", "Exit"
-};
-int menuIndex = 0;
-
-// ─── Prototypes ──────────────────────────────────────────────────────────────
-void initSDL();
-void cleanup();
-void loadData();
-void drawList();
-void drawMenu();
-void drawLoading();
-void triggerBackend(bool reload);
-
-// ─── Init ────────────────────────────────────────────────────────────────────
-void initSDL() {
-    if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_JOYSTICK) < 0) {
-        std::cerr << "[C++ ERROR] SDL_Init: " << SDL_GetError() << std::endl;
-        exit(1);
-    }
-    if (SDL_NumJoysticks() > 0) SDL_JoystickOpen(0);
-
-    window   = SDL_CreateWindow("AMTube", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,
-                                 SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
-    renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
-    if (!window || !renderer) {
-        std::cerr << "[C++ ERROR] Window/Renderer: " << SDL_GetError() << std::endl;
-        exit(1);
-    }
-    std::string fontPath = std::string(RES_PATH) + "/NotoSans-Regular.ttf";
-    if (!fontTitle.load(renderer, fontPath, 20.0f)) { exit(1); }
-    if (!fontAuthor.load(renderer, fontPath, 16.0f)) { exit(1); }
-    std::cerr << "[C++ DEBUG] Init OK. Zero Dependency." << std::endl;
+// ── Helpers ───────────────────────────────────────────────────────────────────
+SDL_Texture* loadImg(const std::string& p) {
+    int w,h,ch; unsigned char* d=stbi_load(p.c_str(),&w,&h,&ch,4);
+    if(!d){std::cerr<<"[ERR] img "<<p<<": "<<stbi_failure_reason()<<std::endl;return nullptr;}
+    SDL_Surface* sf=SDL_CreateRGBSurfaceWithFormatFrom(d,w,h,32,w*4,SDL_PIXELFORMAT_RGBA32);
+    SDL_Texture* t=sf?SDL_CreateTextureFromSurface(ren,sf):nullptr;
+    if(sf)SDL_FreeSurface(sf); stbi_image_free(d); return t;
 }
 
-// ─── Load Image via STB ──────────────────────────────────────────────────────
-SDL_Texture* loadTextureSTB(const std::string& path) {
-    int w, h, ch;
-    unsigned char* data = stbi_load(path.c_str(), &w, &h, &ch, 4);
-    if (!data) {
-        std::cerr << "[C++ ERROR] stbi_load: " << path << " - " << stbi_failure_reason() << std::endl;
-        return nullptr;
-    }
-    SDL_Surface* surface = SDL_CreateRGBSurfaceWithFormatFrom(data, w, h, 32, w*4, SDL_PIXELFORMAT_RGBA32);
-    SDL_Texture* tex = surface ? SDL_CreateTextureFromSurface(renderer, surface) : nullptr;
-    if (surface) SDL_FreeSurface(surface);
-    stbi_image_free(data);
-    return tex;
-}
-
-// ─── Load Data ───────────────────────────────────────────────────────────────
 void loadData() {
-    for (auto& v : videoList) if (v.texture) SDL_DestroyTexture(v.texture);
-    videoList.clear();
-    selectedIndex = 0;
-
-    std::ifstream file("/tmp/yt_data/yt_data.txt");
-    if (!file.is_open()) {
-        std::cerr << "[C++ ERROR] Cannot open /tmp/yt_data/yt_data.txt" << std::endl;
-        return;
+    for(auto&v:vids)if(v.tex)SDL_DestroyTexture(v.tex);
+    vids.clear(); sel=0;
+    std::ifstream f("/tmp/yt_data/yt_data.txt");
+    if(!f.is_open()){std::cerr<<"[ERR] no yt_data.txt"<<std::endl;return;}
+    std::string ln;
+    while(std::getline(f,ln)){
+        std::stringstream ss(ln); std::string it; Video v; int c=0;
+        while(std::getline(ss,it,'|')){if(c==0)v.id=it;else if(c==1)v.title=it;else if(c==2)v.author=it;else if(c==3)v.thumb=it;c++;}
+        if(!v.thumb.empty())v.tex=loadImg(v.thumb);
+        vids.push_back(v);
     }
-    std::string line;
-    while (std::getline(file, line)) {
-        std::stringstream ss(line);
-        std::string item;
-        YouTubeVideo vid;
-        int col = 0;
-        while (std::getline(ss, item, '|')) {
-            if      (col == 0) vid.id         = item;
-            else if (col == 1) vid.title       = item;
-            else if (col == 2) vid.author      = item;
-            else if (col == 3) vid.local_thumb = item;
-            col++;
-        }
-        if (!vid.local_thumb.empty()) vid.texture = loadTextureSTB(vid.local_thumb);
-        videoList.push_back(vid);
-    }
-    file.close();
-    std::cerr << "[C++ DEBUG] Loaded " << videoList.size() << " videos." << std::endl;
+    std::cerr<<"[OK] loaded "<<vids.size()<<" videos"<<std::endl;
 }
 
-// ─── Draw ────────────────────────────────────────────────────────────────────
-void drawMenu() {
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_BLEND);
-    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 180);
-    SDL_Rect full = {0, 0, SCREEN_WIDTH, SCREEN_HEIGHT};
-    SDL_RenderFillRect(renderer, &full);
-    SDL_SetRenderDrawBlendMode(renderer, SDL_BLENDMODE_NONE);
-
-    int bW = 300, bH = 260;
-    int bX = (SCREEN_WIDTH - bW) / 2, bY = (SCREEN_HEIGHT - bH) / 2;
-    SDL_Rect box = {bX, bY, bW, bH};
-    SDL_SetRenderDrawColor(renderer, 40, 40, 40, 255);
-    SDL_RenderFillRect(renderer, &box);
-    SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
-    SDL_RenderDrawRect(renderer, &box);
-
-    fontTitle.renderText(renderer, bX + 50, bY + 20, "--- CATEGORY ---", {255, 200, 0, 255});
-
-    for (int i = 0; i < (int)menuItems.size(); ++i) {
-        int itemY = bY + 52 + i * 30;
-        if (i == menuIndex) {
-            SDL_Rect hl = {bX + 10, itemY - 2, bW - 20, 28};
-            SDL_SetRenderDrawColor(renderer, 100, 100, 100, 255);
-            SDL_RenderFillRect(renderer, &hl);
-        }
-        SDL_Color c = (menuItems[i] == "Exit") ? SDL_Color{255,50,50,255} : SDL_Color{255,255,255,255};
-        fontTitle.renderText(renderer, bX + 20, itemY + 16, menuItems[i], c);
-    }
-}
-
-void drawList() {
-    SDL_SetRenderDrawColor(renderer, 20, 20, 20, 255);
-    SDL_RenderClear(renderer);
-
-    SDL_Rect header = {0, 0, SCREEN_WIDTH, 40};
-    SDL_SetRenderDrawColor(renderer, 30, 30, 30, 255);
-    SDL_RenderFillRect(renderer, &header);
-    fontTitle.renderText(renderer, 10, 28, "AMTube - " + currentCategory, {255, 255, 255, 255});
-    fontAuthor.renderText(renderer, 380, 26, "Y:MENU X:RELOAD A:PLAY", {180, 180, 180, 255});
-
-    int startY = 50, itemH = 90;
-    int startIdx = selectedIndex - 1;
-    if (startIdx < 0) startIdx = 0;
-
-    for (int i = startIdx; i < startIdx + 4 && i < (int)videoList.size(); ++i) {
-        int drawY = startY + (i - startIdx) * itemH;
-        if (i == selectedIndex) {
-            SDL_SetRenderDrawColor(renderer, 220, 30, 30, 255);
-            SDL_Rect hl = {4, drawY, SCREEN_WIDTH - 8, itemH - 5};
-            SDL_RenderDrawRect(renderer, &hl);
-            SDL_Rect hl2 = {5, drawY + 1, SCREEN_WIDTH - 10, itemH - 7};
-            SDL_RenderDrawRect(renderer, &hl2);
-        }
-        auto& vid = videoList[i];
-        if (vid.texture) {
-            SDL_Rect tr = {10, drawY + 5, 128, 72};
-            SDL_RenderCopy(renderer, vid.texture, nullptr, &tr);
-        } else {
-            SDL_Rect eb = {10, drawY + 5, 128, 72};
-            SDL_SetRenderDrawColor(renderer, 50, 50, 50, 255);
-            SDL_RenderFillRect(renderer, &eb);
-        }
-        fontTitle.renderTextWrapped(renderer, 150, drawY + 20, vid.title,  {255,255,255,255}, 470);
-        fontAuthor.renderText(renderer, 150, drawY + 60, vid.author, {150,150,150,255});
-    }
-
-    if (state == VIEW_MENU) {
-        drawMenu();
-    } else if (state == PLAYING_VIDEO) {
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-        SDL_RenderClear(renderer);
-        fontTitle.renderText(renderer, 160, 230, "Playing MPV... Press B to stop.", {255,255,255,255});
-    }
-    SDL_RenderPresent(renderer);
-}
-
-void drawLoading() {
-    SDL_SetRenderDrawColor(renderer, 20, 20, 20, 255);
-    SDL_RenderClear(renderer);
-    fontTitle.renderText(renderer, 180, 230, "ZAPPING... Fetching data...", {255,255,255,255});
-    SDL_RenderPresent(renderer);
-}
-
-void triggerBackend(bool reload) {
-    drawLoading();
-    std::string mapped = currentCategory;
-    if (mapped == "Subscribed" || mapped == "Kenh Dang Ky") mapped = "Subscribed";
-    std::string cmd = "./amtube_backend.sh --category \"" + mapped + "\"";
-    if (reload) cmd += " --reload";
-    std::cerr << "[C++ DEBUG] Backend cmd: " << cmd << std::endl;
-    int ret = system(cmd.c_str());
-    std::cerr << "[C++ DEBUG] Backend returned: " << ret << std::endl;
+void backend(bool reload) {
+    SDL_SetRenderDrawColor(ren,20,20,20,255); SDL_RenderClear(ren);
+    fBig.draw(ren,180,230,"ZAPPING... Fetching data...",{255,255,255,255});
+    SDL_RenderPresent(ren);
+    std::string m=cat; if(m=="Kenh Dang Ky")m="Subscribed";
+    std::string cmd="./amtube_backend.sh --category \""+m+"\"";
+    if(reload)cmd+=" --reload";
+    std::cerr<<"[CMD] "<<cmd<<std::endl;
+    system(cmd.c_str());
     loadData();
 }
 
-void cleanup() {
-    for (auto& v : videoList) if (v.texture) SDL_DestroyTexture(v.texture);
-    SDL_DestroyRenderer(renderer);
-    SDL_DestroyWindow(window);
-    SDL_Quit();
+void drawMenu() {
+    SDL_SetRenderDrawBlendMode(ren,SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(ren,0,0,0,180);
+    SDL_Rect full={0,0,W,H}; SDL_RenderFillRect(ren,&full);
+    SDL_SetRenderDrawBlendMode(ren,SDL_BLENDMODE_NONE);
+    int bw=300,bh=260,bx=(W-bw)/2,by=(H-bh)/2;
+    SDL_Rect box={bx,by,bw,bh};
+    SDL_SetRenderDrawColor(ren,40,40,40,255); SDL_RenderFillRect(ren,&box);
+    SDL_SetRenderDrawColor(ren,255,255,255,255); SDL_RenderDrawRect(ren,&box);
+    fBig.draw(ren,bx+50,by+20,"--- CATEGORY ---",{255,200,0,255});
+    for(int i=0;i<(int)menu.size();i++){
+        int iy=by+52+i*30;
+        if(i==mi){SDL_Rect h={bx+10,iy-2,bw-20,28};SDL_SetRenderDrawColor(ren,100,100,100,255);SDL_RenderFillRect(ren,&h);}
+        SDL_Color c=(menu[i]=="Exit")?SDL_Color{255,50,50,255}:SDL_Color{255,255,255,255};
+        fBig.draw(ren,bx+20,iy+16,menu[i],c);
+    }
 }
 
-// ─── Main ────────────────────────────────────────────────────────────────────
+void drawFrame() {
+    SDL_SetRenderDrawColor(ren,20,20,20,255); SDL_RenderClear(ren);
+    SDL_Rect hdr={0,0,W,40}; SDL_SetRenderDrawColor(ren,30,30,30,255); SDL_RenderFillRect(ren,&hdr);
+    fBig.draw(ren,10,28,"AMTube - "+cat,{255,255,255,255});
+    fSm.draw(ren,380,26,"Y:MENU X:RELOAD A:PLAY",{180,180,180,255});
+    int sy=50,ih=90,si=sel-1; if(si<0)si=0;
+    for(int i=si;i<si+4&&i<(int)vids.size();i++){
+        int dy=sy+(i-si)*ih;
+        if(i==sel){SDL_SetRenderDrawColor(ren,220,30,30,255);SDL_Rect r={4,dy,W-8,ih-5};SDL_RenderDrawRect(ren,&r);}
+        auto&v=vids[i];
+        if(v.tex){SDL_Rect r={10,dy+5,128,72};SDL_RenderCopy(ren,v.tex,nullptr,&r);}
+        else{SDL_Rect r={10,dy+5,128,72};SDL_SetRenderDrawColor(ren,50,50,50,255);SDL_RenderFillRect(ren,&r);}
+        fBig.drawWrap(ren,150,dy+20,v.title,{255,255,255,255},470);
+        fSm.draw(ren,150,dy+60,v.author,{150,150,150,255});
+    }
+    if(st==MENU) drawMenu();
+    else if(st==PLAYING){
+        SDL_SetRenderDrawColor(ren,0,0,0,255); SDL_RenderClear(ren);
+        fBig.draw(ren,150,230,"Playing MPV... Press B to stop.",{255,255,255,255});
+    }
+    SDL_RenderPresent(ren);
+}
+
+// ── Main ──────────────────────────────────────────────────────────────────────
 int main(int argc, char* args[]) {
-    initSDL();
-    triggerBackend(false);
+    if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_JOYSTICK)<0){std::cerr<<"SDL_Init: "<<SDL_GetError()<<std::endl;return 1;}
+    if(SDL_NumJoysticks()>0)SDL_JoystickOpen(0);
+    win=SDL_CreateWindow("AMTube",SDL_WINDOWPOS_UNDEFINED,SDL_WINDOWPOS_UNDEFINED,W,H,SDL_WINDOW_SHOWN);
+    ren=SDL_CreateRenderer(win,-1,SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
+    if(!win||!ren){std::cerr<<"Window/Renderer: "<<SDL_GetError()<<std::endl;return 1;}
+    std::string fp=std::string(RES_PATH)+"/NotoSans-Regular.ttf";
+    if(!fBig.load(ren,fp,20.0f)||!fSm.load(ren,fp,16.0f)){std::cerr<<"Font failed: "<<fp<<std::endl;return 1;}
+    std::cerr<<"[OK] Init done"<<std::endl;
 
-    SDL_Event e;
-    int prevAxisY = 0;
+    backend(false);
 
-    while (isRunning) {
-        while (SDL_PollEvent(&e) != 0) {
+    SDL_Event e; int prevY=0;
+    while(run){
+        while(SDL_PollEvent(&e)){
+            if(e.type==SDL_QUIT){ run=false; }
 
-            if (e.type == SDL_QUIT) {
-                isRunning = false;
-
-            } else if (e.type == SDL_KEYDOWN) {
-                switch (e.key.keysym.sym) {
-                    case SDLK_ESCAPE: isRunning = false; break;
-                    case SDLK_UP:
-                        if (state == VIEW_LIST && selectedIndex > 0) selectedIndex--;
-                        else if (state == VIEW_MENU && menuIndex > 0) menuIndex--;
-                        break;
-                    case SDLK_DOWN:
-                        if (state == VIEW_LIST && selectedIndex < (int)videoList.size() - 1) selectedIndex++;
-                        else if (state == VIEW_MENU && menuIndex < (int)menuItems.size() - 1) menuIndex++;
-                        break;
+            else if(e.type==SDL_KEYDOWN){
+                if(e.key.keysym.sym==SDLK_ESCAPE) run=false;
+                else if(e.key.keysym.sym==SDLK_UP){
+                    if(st==LIST&&sel>0)sel--;
+                    else if(st==MENU&&mi>0)mi--;
                 }
+                else if(e.key.keysym.sym==SDLK_DOWN){
+                    if(st==LIST&&sel<(int)vids.size()-1)sel++;
+                    else if(st==MENU&&mi<(int)menu.size()-1)mi++;
+                }
+            }
 
-            } else if (e.type == SDL_JOYBUTTONDOWN) {
-                // R36S Clone mapping: A=0, B=1, X=2, Y=3
-                switch (e.jbutton.button) {
-                    case 0: // A - Confirm / Play
-                        if (state == VIEW_MENU) {
-                            if (menuItems[menuIndex] == "Exit") {
-                                isRunning = false;
-                            } else {
-                                currentCategory = menuItems[menuIndex];
-                                state = VIEW_LIST;
-                                triggerBackend(false);
-                            }
-                        } else if (state == VIEW_LIST && !videoList.empty()) {
-                            state = PLAYING_VIDEO;
-                            for (auto& vid : videoList) {
-                                if (vid.texture) { SDL_DestroyTexture(vid.texture); vid.texture = nullptr; }
-                            }
-                            std::string cmd = "mpv --fs 'https://youtube.com/watch?v=" + videoList[selectedIndex].id + "' &";
+            else if(e.type==SDL_JOYBUTTONDOWN){
+                std::cerr<<"[BTN] "<<(int)e.jbutton.button<<std::endl;
+                switch(e.jbutton.button){
+                    case 0: // A - Confirm/Play
+                        if(st==MENU){
+                            if(menu[mi]=="Exit"){run=false;}
+                            else{cat=menu[mi];st=LIST;backend(false);}
+                        } else if(st==LIST&&!vids.empty()){
+                            st=PLAYING;
+                            for(auto&v:vids)if(v.tex){SDL_DestroyTexture(v.tex);v.tex=nullptr;}
+                            std::string cmd="mpv --fs 'https://youtube.com/watch?v="+vids[sel].id+"' &";
                             system(cmd.c_str());
                         }
                         break;
-
                     case 1: // B - Back
-                        if (state == VIEW_MENU) {
-                            state = VIEW_LIST;
-                        } else if (state == PLAYING_VIDEO) {
-                            system("killall -9 mpv");
-                            state = VIEW_LIST;
-                            loadData();
-                        }
+                        if(st==MENU){st=LIST;}
+                        else if(st==PLAYING){system("killall -9 mpv");st=LIST;loadData();}
                         break;
-
-                    case 2: // X - Reload / Zapping
-                        if (state == VIEW_LIST) triggerBackend(true);
+                    case 2: // X - Reload/Zap
+                        if(st==LIST)backend(true);
                         break;
-
                     case 3: // Y - Menu
-                        if (state == VIEW_LIST) state = VIEW_MENU;
+                        if(st==LIST)st=MENU;
                         break;
                 }
+            }
 
-            } else if (e.type == SDL_JOYHATMOTION) {
-                if (e.jhat.value == SDL_HAT_UP) {
-                    if (state == VIEW_LIST && selectedIndex > 0) selectedIndex--;
-                    else if (state == VIEW_MENU && menuIndex > 0) menuIndex--;
-                } else if (e.jhat.value == SDL_HAT_DOWN) {
-                    if (state == VIEW_LIST && selectedIndex < (int)videoList.size() - 1) selectedIndex++;
-                    else if (state == VIEW_MENU && menuIndex < (int)menuItems.size() - 1) menuIndex++;
+            else if(e.type==SDL_JOYHATMOTION){
+                std::cerr<<"[HAT] hat="<<(int)e.jhat.hat<<" val="<<(int)e.jhat.value<<std::endl;
+                if(e.jhat.value==SDL_HAT_UP){
+                    if(st==LIST&&sel>0)sel--;
+                    else if(st==MENU&&mi>0)mi--;
+                } else if(e.jhat.value==SDL_HAT_DOWN){
+                    if(st==LIST&&sel<(int)vids.size()-1)sel++;
+                    else if(st==MENU&&mi<(int)menu.size()-1)mi++;
                 }
+            }
 
-            } else if (e.type == SDL_JOYAXISMOTION) {
-                if (e.jaxis.axis == 1) {
-                    int val = e.jaxis.value;
-                    if (val < -8000 && prevAxisY >= -8000) {
-                        if (state == VIEW_LIST && selectedIndex > 0) selectedIndex--;
-                        else if (state == VIEW_MENU && menuIndex > 0) menuIndex--;
-                    } else if (val > 8000 && prevAxisY <= 8000) {
-                        if (state == VIEW_LIST && selectedIndex < (int)videoList.size() - 1) selectedIndex++;
-                        else if (state == VIEW_MENU && menuIndex < (int)menuItems.size() - 1) menuIndex++;
+            else if(e.type==SDL_JOYAXISMOTION){
+                std::cerr<<"[AXIS] axis="<<(int)e.jaxis.axis<<" val="<<e.jaxis.value<<std::endl;
+                if(e.jaxis.axis==1){
+                    int v=e.jaxis.value;
+                    if(v<-8000&&prevY>=-8000){
+                        if(st==LIST&&sel>0)sel--;
+                        else if(st==MENU&&mi>0)mi--;
+                    } else if(v>8000&&prevY<=8000){
+                        if(st==LIST&&sel<(int)vids.size()-1)sel++;
+                        else if(st==MENU&&mi<(int)menu.size()-1)mi++;
                     }
-                    prevAxisY = val;
+                    prevY=v;
                 }
             }
         }
-
-        if (state != PLAYING_VIDEO) drawList();
+        if(st!=PLAYING)drawFrame();
         SDL_Delay(16);
     }
-
-    cleanup();
+    for(auto&v:vids)if(v.tex)SDL_DestroyTexture(v.tex);
+    SDL_DestroyRenderer(ren); SDL_DestroyWindow(win); SDL_Quit();
     return 0;
 }
