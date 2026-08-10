@@ -34,7 +34,7 @@ echo "[AMTube] Fetching data for category: $CATEGORY"
 SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 python3 << PYEOF
-import sys, json, os, urllib.request, urllib.parse, random, traceback
+import sys, json, os, urllib.request, urllib.parse, random, traceback, ssl
 
 category = "$CATEGORY"
 script_dir = "$SCRIPT_DIR"
@@ -42,6 +42,11 @@ data_dir = "$DATA_DIR"
 thumb_dir = "$THUMB_DIR"
 output_file = "$OUTPUT_FILE"
 channel_file = os.path.join(script_dir, 'amtube_channels.txt')
+
+# Ignore SSL verification (R36S often has wrong system time causing "certificate is not yet valid")
+ssl_ctx = ssl.create_default_context()
+ssl_ctx.check_hostname = False
+ssl_ctx.verify_mode = ssl.CERT_NONE
 
 # Fallback list - try in order until one works
 INVIDIOUS_INSTANCES = [
@@ -53,7 +58,7 @@ INVIDIOUS_INSTANCES = [
 
 def try_fetch(url):
     req = urllib.request.Request(url, headers={'User-Agent': 'AMTube/1.0 (Retro Handheld)'})
-    with urllib.request.urlopen(req, timeout=12) as r:
+    with urllib.request.urlopen(req, timeout=12, context=ssl_ctx) as r:
         return json.loads(r.read().decode('utf-8'))
 
 def build_url(host, category, channel_file):
