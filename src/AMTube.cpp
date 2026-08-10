@@ -328,7 +328,8 @@ int main(int argc, char* args[]) {
                                     cookie_arg = " --cookies cookies.txt ";
                                     fclose(c_check);
                                 }
-                                std::string fetch_cmd = "if [ -f ./yt-dlp ]; then ./yt-dlp" + cookie_arg + "--no-check-certificate -g -f \"bestvideo[height<=?480]+bestaudio/best\" \"https://youtube.com/watch?v="+vids[sel].id+"\"; else ./youtube-dl" + cookie_arg + "--no-check-certificate -g -f \"bestvideo[height<=?480]+bestaudio/best\" \"https://youtube.com/watch?v="+vids[sel].id+"\"; fi";
+                                std::string format = "bestvideo[vcodec^=avc][height<=?480]+bestaudio[ext=m4a]/best[vcodec^=avc][height<=?480]/best[height<=?480]";
+                                std::string fetch_cmd = "if [ -f ./yt-dlp ]; then ./yt-dlp" + cookie_arg + "--no-check-certificate -g -f \""+format+"\" \"https://youtube.com/watch?v="+vids[sel].id+"\"; else ./youtube-dl" + cookie_arg + "--no-check-certificate -g -f \""+format+"\" \"https://youtube.com/watch?v="+vids[sel].id+"\"; fi";
                                 FILE* pipe = popen(fetch_cmd.c_str(), "r");
                                 std::string raw_url = "";
                                 if (pipe) {
@@ -343,7 +344,7 @@ int main(int argc, char* args[]) {
                                     std::string vid_url = (nl != std::string::npos) ? raw_url.substr(0, nl) : raw_url;
                                     std::string aud_url = (nl != std::string::npos) ? raw_url.substr(nl+1) : "";
                                     
-                                    std::string cmd="mpv --fs '"+vid_url+"'";
+                                    std::string cmd="mpv --ao=sdl --vo=sdl --fs '"+vid_url+"'";
                                     if(!aud_url.empty()) cmd += " --audio-file='"+aud_url+"'";
                                     cmd += " &";
                                     system(cmd.c_str());
