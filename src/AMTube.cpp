@@ -322,7 +322,13 @@ int main(int argc, char* args[]) {
                                 fBig.draw(ren,150,230,"Đang lấy luồng Video... Vui lòng đợi!",{255,255,255,255});
                                 SDL_RenderPresent(ren);
 
-                                std::string fetch_cmd = "if [ -f ./yt-dlp ]; then ./yt-dlp --no-check-certificate -g -f \"bestvideo[height<=?480]+bestaudio/best\" \"https://youtube.com/watch?v="+vids[sel].id+"\"; else ./youtube-dl --no-check-certificate -g -f \"bestvideo[height<=?480]+bestaudio/best\" \"https://youtube.com/watch?v="+vids[sel].id+"\"; fi";
+                                std::string cookie_arg = "";
+                                FILE* c_check = fopen("./cookies.txt", "r");
+                                if (c_check) {
+                                    cookie_arg = " --cookies cookies.txt ";
+                                    fclose(c_check);
+                                }
+                                std::string fetch_cmd = "if [ -f ./yt-dlp ]; then ./yt-dlp" + cookie_arg + "--no-check-certificate -g -f \"bestvideo[height<=?480]+bestaudio/best\" \"https://youtube.com/watch?v="+vids[sel].id+"\"; else ./youtube-dl" + cookie_arg + "--no-check-certificate -g -f \"bestvideo[height<=?480]+bestaudio/best\" \"https://youtube.com/watch?v="+vids[sel].id+"\"; fi";
                                 FILE* pipe = popen(fetch_cmd.c_str(), "r");
                                 std::string raw_url = "";
                                 if (pipe) {
