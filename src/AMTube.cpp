@@ -232,15 +232,15 @@ void drawMenu() {
     fBig.draw(ren,bx+50,by+20,"--- THỂ LOẠI ---",{255,200,0,255});
     for(int i=0;i<(int)menu.size();i++){
         int iy=by+52+i*30;
-        if(i==mi){SDL_Rect h={bx+10,iy-2,bw-20,28};SDL_SetRenderDrawColor(ren,100,100,100,255);SDL_RenderFillRect(ren,&h);}
+        if(i==mi){SDL_Rect h={bx+10,iy-4,bw-20,28};SDL_SetRenderDrawColor(ren,100,100,100,255);SDL_RenderFillRect(ren,&h);}
         SDL_Color c=(menu[i]=="Thoát")?SDL_Color{255,50,50,255}:SDL_Color{255,255,255,255};
-        fBig.draw(ren,bx+20,iy+16,menu[i],c);
+        fBig.draw(ren,bx+20,iy+18,menu[i],c);
     }
 }
 
 void drawFrame() {
     SDL_SetRenderDrawColor(ren,20,20,20,255); SDL_RenderClear(ren);
-    SDL_Rect hdr={0,0,W,40}; SDL_SetRenderDrawColor(ren,30,30,30,255); SDL_RenderFillRect(ren,&hdr);
+    SDL_SetRenderDrawColor(ren,220,30,30,255); SDL_RenderDrawLine(ren,0,40,W,40); // Red line separator
     fBig.draw(ren,10,28,"AMTube - "+cat,{255,255,255,255});
     fSm.draw(ren,340,26,"Y:DANH MỤC X:TẢI LẠI A:PHÁT",{180,180,180,255});
     int sy=50,ih=90,si=sel-1; if(si<0)si=0;
@@ -344,7 +344,8 @@ int main(int argc, char* args[]) {
                                     std::string vid_url = (nl != std::string::npos) ? raw_url.substr(0, nl) : raw_url;
                                     std::string aud_url = (nl != std::string::npos) ? raw_url.substr(nl+1) : "";
                                     
-                                    std::string cmd="mpv --ao=sdl --vo=sdl --fs '"+vid_url+"'";
+                                    system("echo 'ENTER cycle pause' > /tmp/mpv_input.conf");
+                                    std::string cmd="mpv --vo=sdl --input-conf=/tmp/mpv_input.conf --fs '"+vid_url+"'";
                                     if(!aud_url.empty()) cmd += " --audio-file='"+aud_url+"'";
                                     cmd += " &";
                                     system(cmd.c_str());
