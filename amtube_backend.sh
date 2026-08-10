@@ -93,7 +93,8 @@ if not videos:
     sys.exit(0)
 
 count = 0
-with open(output_file, 'w', encoding='utf-8') as out_f:
+try:
+    with open(output_file, 'w', encoding='utf-8') as out_f:
     for vid in videos:
         if count >= 10:
             break

@@ -305,7 +305,7 @@ void drawList() {
     SDL_SetRenderDrawColor(renderer, 30, 30, 30, 255);
     SDL_RenderFillRect(renderer, &headerRect);
     fontTitle.renderText(renderer, 10, 28, "AMTube - " + currentCategory, {255, 255, 255, 255});
-    fontAuthor.renderText(renderer, 350, 26, "Y:MENU X:RELOAD A:PLAY", {200, 200, 200, 255});
+    fontAuthor.renderText(renderer, 370, 26, "Y:MENU X:RELOAD A:PLAY", {200, 200, 200, 255});
 
     int startY    = 50;
     int itemHeight = 90;
@@ -345,7 +345,7 @@ void drawList() {
     } else if (state == PLAYING_VIDEO) {
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
-        fontTitle.renderText(renderer, 170, 230, "Playing MPV... Press B to stop.", {255, 255, 255, 255});
+    fontTitle.renderText(renderer, 180, 230, "Playing MPV... Press B to stop.", {255, 255, 255, 255});
     }
 
     SDL_RenderPresent(renderer);
@@ -368,7 +368,7 @@ void drawMenu() {
     SDL_SetRenderDrawColor(renderer, 255, 255, 255, 255);
     SDL_RenderDrawRect(renderer, &menuBox);
 
-    fontTitle.renderText(renderer, boxX + 40, boxY + 20, "--- CHUYEN MUC ---", {255, 200, 0, 255});
+    fontTitle.renderText(renderer, boxX + 40, boxY + 20, "--- CATEGORY ---", {255, 200, 0, 255});
 
     for (int i = 0; i < (int)menuItems.size(); ++i) {
         int itemY = boxY + 52 + i * 30;
@@ -437,19 +437,9 @@ int main(int argc, char* args[]) {
                         if (state == VIEW_LIST && selectedIndex < (int)videoList.size() - 1) selectedIndex++;
                         else if (state == VIEW_MENU && menuIndex < (int)menuItems.size() - 1) menuIndex++;
                         break;
-                }
-            } else if (e.type == SDL_JOYBUTTONDOWN) {
+                       } else if (e.type == SDL_JOYBUTTONDOWN) {
                 switch (e.jbutton.button) {
-                    case 0: // B (Back)
-                        if (state == VIEW_MENU) {
-                            state = VIEW_LIST;
-                        } else if (state == PLAYING_VIDEO) {
-                            system("killall -9 mpv");
-                            state = VIEW_LIST;
-                            loadData();
-                        }
-                        break;
-                    case 1: // A (Confirm / Play)
+                    case 0: // A - Confirm / Play
                         if (state == VIEW_MENU) {
                             if (menuItems[menuIndex] == "Exit") {
                                 isRunning = false;
@@ -472,17 +462,26 @@ int main(int argc, char* args[]) {
                             system(cmd.c_str());
                         }
                         break;
-                    case 2: // Y (Menu)
-                        if (state == VIEW_LIST) {
-                            state = VIEW_MENU;
+                    case 1: // B - Back
+                        if (state == VIEW_MENU) {
+                            state = VIEW_LIST;
+                        } else if (state == PLAYING_VIDEO) {
+                            system("killall -9 mpv");
+                            state = VIEW_LIST;
+                            loadData();
                         }
                         break;
-                    case 3: // X (Reload / Zapping)
+                    case 2: // X - Reload / Zapping
                         if (state == VIEW_LIST) {
                             triggerBackend(true);
                         }
                         break;
-                }
+                    case 3: // Y - Menu
+                        if (state == VIEW_LIST) {
+                            state = VIEW_MENU;
+                        }
+                        break;
+                }      }
             } else if (e.type == SDL_JOYHATMOTION) {
                 if (e.jhat.value == SDL_HAT_UP) {
                     if (state == VIEW_LIST && selectedIndex > 0) selectedIndex--;
@@ -490,6 +489,20 @@ int main(int argc, char* args[]) {
                 } else if (e.jhat.value == SDL_HAT_DOWN) {
                     if (state == VIEW_LIST && selectedIndex < (int)videoList.size() - 1) selectedIndex++;
                     else if (state == VIEW_MENU && menuIndex < (int)menuItems.size() - 1) menuIndex++;
+                }
+            } else if (e.type == SDL_JOYAXISMOTION) {
+                // Fallback: some R36S clones send axis instead of hat for DPad
+                static int prevAxisY = 0;
+                if (e.jaxis.axis == 1) { // Y axis
+                    int val = e.jaxis.value;
+                    if (val < -8000 && prevAxisY >= -8000) { // UP edge
+                        if (state == VIEW_LIST && selectedIndex > 0) selectedIndex--;
+                        else if (state == VIEW_MENU && menuIndex > 0) menuIndex--;
+                    } else if (val > 8000 && prevAxisY <= 8000) { // DOWN edge
+                        if (state == VIEW_LIST && selectedIndex < (int)videoList.size() - 1) selectedIndex++;
+                        else if (state == VIEW_MENU && menuIndex < (int)menuItems.size() - 1) menuIndex++;
+                    }
+                    prevAxisY = val;
                 }
             }
         }
