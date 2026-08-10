@@ -232,17 +232,17 @@ void drawMenu() {
     fBig.draw(ren,bx+50,by+20,"--- THỂ LOẠI ---",{255,200,0,255});
     for(int i=0;i<(int)menu.size();i++){
         int iy=by+52+i*30;
-        if(i==mi){SDL_Rect h={bx+10,iy-4,bw-20,28};SDL_SetRenderDrawColor(ren,100,100,100,255);SDL_RenderFillRect(ren,&h);}
+        if(i==mi){SDL_Rect h={bx+10,iy,bw-20,28};SDL_SetRenderDrawColor(ren,100,100,100,255);SDL_RenderFillRect(ren,&h);}
         SDL_Color c=(menu[i]=="Thoát")?SDL_Color{255,50,50,255}:SDL_Color{255,255,255,255};
-        fBig.draw(ren,bx+20,iy+18,menu[i],c);
+        fBig.draw(ren,bx+20,iy+4,menu[i],c);
     }
 }
 
 void drawFrame() {
     SDL_SetRenderDrawColor(ren,20,20,20,255); SDL_RenderClear(ren);
-    SDL_SetRenderDrawColor(ren,220,30,30,255); SDL_RenderDrawLine(ren,0,40,W,40); // Red line separator
-    fBig.draw(ren,10,28,"AMTube - "+cat,{255,255,255,255});
-    fSm.draw(ren,340,26,"Y:DANH MỤC X:TẢI LẠI A:PHÁT",{180,180,180,255});
+    SDL_SetRenderDrawColor(ren,220,30,30,255); SDL_RenderDrawLine(ren,0,45,W,45); // Red line separator
+    fBig.draw(ren,10,12,"AMTube - "+cat,{255,255,255,255});
+    fSm.draw(ren,340,16,"Y:DANH MỤC X:TẢI LẠI A:PHÁT",{180,180,180,255});
     int sy=50,ih=90,si=sel-1; if(si<0)si=0;
     for(int i=si;i<si+4&&i<(int)vids.size();i++){
         int dy=sy+(i-si)*ih;
@@ -328,7 +328,7 @@ int main(int argc, char* args[]) {
                                     cookie_arg = " --cookies cookies.txt ";
                                     fclose(c_check);
                                 }
-                                std::string format = "bestvideo[vcodec^=avc][height<=?480]+bestaudio[ext=m4a]/best[vcodec^=avc][height<=?480]/best[height<=?480]";
+                                std::string format = "18/best[vcodec^=avc][height<=?480]/best[height<=?480]";
                                 std::string fetch_cmd = "if [ -f ./yt-dlp ]; then ./yt-dlp" + cookie_arg + "--no-check-certificate -g -f \""+format+"\" \"https://youtube.com/watch?v="+vids[sel].id+"\"; else ./youtube-dl" + cookie_arg + "--no-check-certificate -g -f \""+format+"\" \"https://youtube.com/watch?v="+vids[sel].id+"\"; fi";
                                 FILE* pipe = popen(fetch_cmd.c_str(), "r");
                                 std::string raw_url = "";
