@@ -15,7 +15,7 @@ else
 endif
 
 COMPILER_FLAGS = $(shell $(SDL2_CONFIG) --cflags) -Wall -pedantic -DDEVICE_$(DEVICE) -DSTART_PATH=\"$(START_PATH)\" -DRES_PATH=\"$(RES_PATH)\"
-LINKER_FLAGS = $(shell $(SDL2_CONFIG) --libs) -pthread -lSDL2_image -lSDL2_ttf
+LINKER_FLAGS = $(shell $(SDL2_CONFIG) --libs) -pthread
 
 all : $(TARGET)
 
