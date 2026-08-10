@@ -21,75 +21,147 @@
 const int W = 640, H = 480;
 
 // ── STB Font ─────────────────────────────────────────────────────────────────
+#include <unordered_map>
 class CustomFont {
 public:
-    SDL_Texture* atlas = nullptr;
-    stbtt_bakedchar cd[96];
-    int tw = 512, th = 512;
+    stbtt_fontinfo info;
+    std::vector<unsigned char> ttf_buffer;
+    float scale;
+    int ascent, descent, lineGap;
     float sz = 20.0f;
+    
+    struct Glyph {
+        SDL_Texture* tex;
+        int w, h, xoff, yoff, advance;
+    };
+    std::unordered_map<int, Glyph> cache;
 
     bool load(SDL_Renderer* r, const std::string& path, float s) {
         sz = s;
         std::ifstream f(path, std::ios::binary | std::ios::ate);
-        if (!f.is_open()) { std::cerr << "[ERR] Font: " << path << std::endl; return false; }
+        if (!f.is_open()) return false;
         auto len = f.tellg(); f.seekg(0);
-        std::vector<unsigned char> buf(len);
-        f.read((char*)buf.data(), len);
+        ttf_buffer.resize(len);
+        f.read((char*)ttf_buffer.data(), len);
+        
+        if (!stbtt_InitFont(&info, ttf_buffer.data(), 0)) return false;
+        
+        scale = stbtt_ScaleForPixelHeight(&info, s);
+        stbtt_GetFontVMetrics(&info, &ascent, &descent, &lineGap);
+        return true;
+    }
 
-        std::vector<unsigned char> bm(tw*th);
-        stbtt_BakeFontBitmap(buf.data(), 0, s, bm.data(), tw, th, 32, 96, cd);
+    Glyph getGlyph(SDL_Renderer* r, int cp) {
+        if (cache.count(cp)) return cache[cp];
+        Glyph g = {nullptr, 0, 0, 0, 0, 0};
+        int adv, lsb;
+        stbtt_GetCodepointHMetrics(&info, cp, &adv, &lsb);
+        g.advance = adv * scale;
+        
+        int x0,y0,x1,y1;
+        stbtt_GetCodepointBitmapBox(&info, cp, scale, scale, &x0, &y0, &x1, &y1);
+        g.w = x1 - x0;
+        g.h = y1 - y0;
+        g.xoff = x0;
+        g.yoff = y0;
+        
+        if (g.w > 0 && g.h > 0) {
+            unsigned char* bitmap = stbtt_GetCodepointBitmap(&info, scale, scale, cp, &g.w, &g.h, &g.xoff, &g.yoff);
+            std::vector<unsigned char> rgba(g.w * g.h * 4, 255);
+            for (int i=0; i<g.w*g.h; i++) rgba[i*4+3] = bitmap[i];
+            stbtt_FreeBitmap(bitmap, nullptr);
+            SDL_Surface* sf = SDL_CreateRGBSurfaceFrom(rgba.data(), g.w, g.h, 32, g.w*4, 0xFF, 0xFF00, 0xFF0000, 0xFF000000);
+            g.tex = SDL_CreateTextureFromSurface(r, sf);
+            SDL_SetTextureBlendMode(g.tex, SDL_BLENDMODE_BLEND);
+            SDL_FreeSurface(sf);
+        }
+        cache[cp] = g;
+        return g;
+    }
 
-        std::vector<unsigned char> rgba(tw*th*4, 255);
-        for (int i = 0; i < tw*th; i++) rgba[i*4+3] = bm[i];
-
-        SDL_Surface* sf = SDL_CreateRGBSurfaceFrom(rgba.data(), tw, th, 32, tw*4,
-            0xFF,0xFF00,0xFF0000,0xFF000000);
-        if (!sf) return false;
-        atlas = SDL_CreateTextureFromSurface(r, sf);
-        SDL_FreeSurface(sf);
-        SDL_SetTextureBlendMode(atlas, SDL_BLENDMODE_BLEND);
-        return atlas != nullptr;
+    uint32_t decodeUTF8(const std::string& str, size_t& i) {
+        if (i >= str.length()) return 0;
+        unsigned char c0 = str[i];
+        if ((c0 & 0x80) == 0) { i += 1; return c0; }
+        if ((c0 & 0xE0) == 0xC0) {
+            if (i+1 >= str.length()) { i+=1; return 0; }
+            unsigned char c1 = str[i+1];
+            i += 2; return ((c0 & 0x1F) << 6) | (c1 & 0x3F);
+        }
+        if ((c0 & 0xF0) == 0xE0) {
+            if (i+2 >= str.length()) { i+=1; return 0; }
+            unsigned char c1 = str[i+1], c2 = str[i+2];
+            i += 3; return ((c0 & 0x0F) << 12) | ((c1 & 0x3F) << 6) | (c2 & 0x3F);
+        }
+        if ((c0 & 0xF8) == 0xF0) {
+            if (i+3 >= str.length()) { i+=1; return 0; }
+            unsigned char c1 = str[i+1], c2 = str[i+2], c3 = str[i+3];
+            i += 4; return ((c0 & 0x07) << 18) | ((c1 & 0x3F) << 12) | ((c2 & 0x3F) << 6) | (c3 & 0x3F);
+        }
+        i += 1; return 0;
     }
 
     void draw(SDL_Renderer* r, float x, float y, const std::string& txt, SDL_Color c) {
-        if (!atlas) return;
-        SDL_SetTextureColorMod(atlas, c.r, c.g, c.b);
-        SDL_SetTextureAlphaMod(atlas, c.a);
-        for (unsigned char ch : txt) {
-            if (ch < 32 || ch >= 128) continue;
-            stbtt_aligned_quad q;
-            stbtt_GetBakedQuad(cd, tw, th, ch-32, &x, &y, &q, 1);
-            SDL_Rect s={int(q.s0*tw),int(q.t0*th),int((q.s1-q.s0)*tw),int((q.t1-q.t0)*th)};
-            SDL_Rect d={int(q.x0),int(q.y0),int(q.x1-q.x0),int(q.y1-q.y0)};
-            SDL_RenderCopy(r, atlas, &s, &d);
+        float cx = x;
+        size_t i = 0;
+        int base_y = y + ascent * scale;
+        while(i < txt.length()) {
+            uint32_t cp = decodeUTF8(txt, i);
+            if (!cp) continue;
+            Glyph g = getGlyph(r, cp);
+            if (g.tex) {
+                SDL_SetTextureColorMod(g.tex, c.r, c.g, c.b);
+                SDL_SetTextureAlphaMod(g.tex, c.a);
+                SDL_Rect d = { (int)(cx + g.xoff), (int)(base_y + g.yoff), g.w, g.h };
+                SDL_RenderCopy(r, g.tex, nullptr, &d);
+            }
+            cx += g.advance;
         }
     }
 
     void drawWrap(SDL_Renderer* r, float x, float y, const std::string& txt, SDL_Color c, int maxW) {
-        if (!atlas) return;
-        SDL_SetTextureColorMod(atlas, c.r, c.g, c.b);
-        SDL_SetTextureAlphaMod(atlas, c.a);
-        float lx=x, ly=y, sx=x, lh=sz+2;
+        float cx = x;
+        float cy = y;
+        int base_y = cy + ascent * scale;
+        
         std::istringstream iss(txt);
-        std::string word; bool first=true;
+        std::string word;
         while (std::getline(iss, word, ' ')) {
-            float ww=0, spw=0, dx=0, dy=0;
-            for (unsigned char ch:word) if(ch>=32&&ch<128){stbtt_aligned_quad q;stbtt_GetBakedQuad(cd,tw,th,ch-32,&dx,&dy,&q,1);}
-            ww=dx;
-            if (!first){dx=0;dy=0;stbtt_aligned_quad q;stbtt_GetBakedQuad(cd,tw,th,' '-32,&dx,&dy,&q,1);spw=dx;}
-            if (!first && (lx-sx+spw+ww)>maxW){ly+=lh;lx=sx;}
-            else if(!first){stbtt_aligned_quad q;stbtt_GetBakedQuad(cd,tw,th,' '-32,&lx,&ly,&q,1);}
-            for (unsigned char ch:word) {
-                if(ch<32||ch>=128) continue;
-                stbtt_aligned_quad q;stbtt_GetBakedQuad(cd,tw,th,ch-32,&lx,&ly,&q,1);
-                SDL_Rect s={int(q.s0*tw),int(q.t0*th),int((q.s1-q.s0)*tw),int((q.t1-q.t0)*th)};
-                SDL_Rect d={int(q.x0),int(q.y0),int(q.x1-q.x0),int(q.y1-q.y0)};
-                SDL_RenderCopy(r, atlas, &s, &d);
+            float ww = 0;
+            size_t wi = 0;
+            while(wi < word.length()) {
+                uint32_t cp = decodeUTF8(word, wi);
+                if (cp) ww += getGlyph(r, cp).advance;
             }
-            first=false;
+            
+            Glyph spaceG = getGlyph(r, 32);
+            if (cx > x && (cx - x + spaceG.advance + ww) > maxW) {
+                cy += (ascent - descent + lineGap) * scale;
+                base_y = cy + ascent * scale;
+                cx = x;
+            } else if (cx > x) {
+                cx += spaceG.advance;
+            }
+            
+            wi = 0;
+            while(wi < word.length()) {
+                uint32_t cp = decodeUTF8(word, wi);
+                if (!cp) continue;
+                Glyph g = getGlyph(r, cp);
+                if (g.tex) {
+                    SDL_SetTextureColorMod(g.tex, c.r, c.g, c.b);
+                    SDL_SetTextureAlphaMod(g.tex, c.a);
+                    SDL_Rect d = { (int)(cx + g.xoff), (int)(base_y + g.yoff), g.w, g.h };
+                    SDL_RenderCopy(r, g.tex, nullptr, &d);
+                }
+                cx += g.advance;
+            }
         }
     }
-    ~CustomFont() { if(atlas) SDL_DestroyTexture(atlas); }
+
+    ~CustomFont() {
+        for(auto& pair : cache) if(pair.second.tex) SDL_DestroyTexture(pair.second.tex);
+    }
 };
 
 // ── Data ──────────────────────────────────────────────────────────────────────
@@ -240,9 +312,33 @@ int main(int argc, char* args[]) {
                             } else if(st==LIST&&!vids.empty()){
                                 st=PLAYING;
                                 for(auto&v:vids)if(v.tex){SDL_DestroyTexture(v.tex);v.tex=nullptr;}
-                                // Call MPV normally. Path hack handles yt-dlp redirection!
-                                std::string cmd="mpv --fs 'https://youtube.com/watch?v="+vids[sel].id+"' &";
-                                system(cmd.c_str());
+                                SDL_SetRenderDrawColor(ren,0,0,0,255); SDL_RenderClear(ren);
+                                fBig.draw(ren,150,230,"Resolving Stream URL... Please Wait!",{255,255,255,255});
+                                SDL_RenderPresent(ren);
+
+                                std::string fetch_cmd = "if [ -f ./yt-dlp ]; then ./yt-dlp -g -f \"bestvideo[height<=?480]+bestaudio/best\" \"https://youtube.com/watch?v="+vids[sel].id+"\"; else ./youtube-dl -g -f \"bestvideo[height<=?480]+bestaudio/best\" \"https://youtube.com/watch?v="+vids[sel].id+"\"; fi";
+                                FILE* pipe = popen(fetch_cmd.c_str(), "r");
+                                std::string raw_url = "";
+                                if (pipe) {
+                                    char buffer[128];
+                                    while (fgets(buffer, 128, pipe) != NULL) raw_url += buffer;
+                                    pclose(pipe);
+                                }
+                                
+                                if (!raw_url.empty()) {
+                                    raw_url.erase(raw_url.find_last_not_of(" \n\r\t")+1);
+                                    size_t nl = raw_url.find('\n');
+                                    std::string vid_url = (nl != std::string::npos) ? raw_url.substr(0, nl) : raw_url;
+                                    std::string aud_url = (nl != std::string::npos) ? raw_url.substr(nl+1) : "";
+                                    
+                                    std::string cmd="mpv --fs '"+vid_url+"'";
+                                    if(!aud_url.empty()) cmd += " --audio-file='"+aud_url+"'";
+                                    cmd += " &";
+                                    system(cmd.c_str());
+                                } else {
+                                    st=LIST;
+                                    backend(false);
+                                }
                             }
                             break;
                         case 1: // B - Back
