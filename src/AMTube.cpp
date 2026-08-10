@@ -190,8 +190,14 @@ int main(int argc, char* args[]) {
     win=SDL_CreateWindow("AMTube",SDL_WINDOWPOS_UNDEFINED,SDL_WINDOWPOS_UNDEFINED,W,H,SDL_WINDOW_SHOWN);
     ren=SDL_CreateRenderer(win,-1,SDL_RENDERER_ACCELERATED|SDL_RENDERER_PRESENTVSYNC);
     if(!win||!ren){std::cerr<<"Window/Renderer: "<<SDL_GetError()<<std::endl;return 1;}
-    std::string fp=std::string(RES_PATH)+"/NotoSans-Regular.ttf";
-    if(!fBig.load(ren,fp,20.0f)||!fSm.load(ren,fp,16.0f)){std::cerr<<"Font failed: "<<fp<<std::endl;return 1;}
+    std::string fp = "../arial.ttf";
+    if(!fBig.load(ren,fp,20.0f)||!fSm.load(ren,fp,16.0f)){
+        std::cerr<<"[WARN] ../arial.ttf not found, fallback to ./font.ttf"<<std::endl;
+        fp = "./font.ttf";
+        if(!fBig.load(ren,fp,20.0f)||!fSm.load(ren,fp,16.0f)){
+            std::cerr<<"[ERR] Font failed: "<<fp<<std::endl; return 1;
+        }
+    }
     std::cerr<<"[OK] Init done"<<std::endl;
 
     backend(false);
@@ -234,8 +240,8 @@ int main(int argc, char* args[]) {
                             } else if(st==LIST&&!vids.empty()){
                                 st=PLAYING;
                                 for(auto&v:vids)if(v.tex){SDL_DestroyTexture(v.tex);v.tex=nullptr;}
-                                // Use local yt-dlp to bypass YouTube 429 Too Many Requests
-                                std::string cmd="mpv --fs --script-opts=ytdl_hook-ytdl_path=./yt-dlp 'https://youtube.com/watch?v="+vids[sel].id+"' &";
+                                // Call MPV normally. Path hack handles yt-dlp redirection!
+                                std::string cmd="mpv --fs 'https://youtube.com/watch?v="+vids[sel].id+"' &";
                                 system(cmd.c_str());
                             }
                             break;
