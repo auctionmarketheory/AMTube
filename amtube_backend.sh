@@ -148,7 +148,7 @@ try:
             out_f.write(f'{vid_id}|{title}|{author}|{local_thumb}\n')
 
             if thumb_url:
-                os.system(f'curl -sL "{thumb_url}" -o "{local_thumb}"')
+                os.system(f'curl -skL "{thumb_url}" -o "{local_thumb}"')
 
             count += 1
 

@@ -234,7 +234,8 @@ int main(int argc, char* args[]) {
                             } else if(st==LIST&&!vids.empty()){
                                 st=PLAYING;
                                 for(auto&v:vids)if(v.tex){SDL_DestroyTexture(v.tex);v.tex=nullptr;}
-                                std::string cmd="mpv --fs 'https://youtube.com/watch?v="+vids[sel].id+"' &";
+                                // Use local yt-dlp to bypass YouTube 429 Too Many Requests
+                                std::string cmd="mpv --fs --script-opts=ytdl_hook-ytdl_path=./yt-dlp 'https://youtube.com/watch?v="+vids[sel].id+"' &";
                                 system(cmd.c_str());
                             }
                             break;
