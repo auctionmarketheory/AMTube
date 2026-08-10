@@ -90,7 +90,16 @@ void initSDL() {
 
     std::string fontPath = std::string(RES_PATH) + "/NotoSans-Regular.ttf";
     fontTitle = TTF_OpenFont(fontPath.c_str(), 20);
+    if (!fontTitle) {
+        std::cerr << "[C++ ERROR] TTF_OpenFont failed for Title: " << fontPath << " - Error: " << TTF_GetError() << std::endl;
+        exit(1);
+    }
     fontAuthor = TTF_OpenFont(fontPath.c_str(), 16);
+    if (!fontAuthor) {
+        std::cerr << "[C++ ERROR] TTF_OpenFont failed for Author: " << fontPath << " - Error: " << TTF_GetError() << std::endl;
+        exit(1);
+    }
+    std::cerr << "[C++ DEBUG] All SDL subsystems and fonts initialized successfully." << std::endl;
 }
 
 void loadData() {
@@ -125,6 +134,8 @@ void loadData() {
             if (surface) {
                 vid.texture = SDL_CreateTextureFromSurface(renderer, surface);
                 SDL_FreeSurface(surface);
+            } else {
+                std::cerr << "[C++ ERROR] Failed to load image: " << vid.local_thumb << " - " << IMG_GetError() << std::endl;
             }
         }
         
@@ -249,9 +260,13 @@ void triggerBackend(bool reload) {
     std::string mappedCategory = currentCategory;
     if (mappedCategory == "Kenh Dang Ky") mappedCategory = "Subscribed";
 
-    std::string cmd = "/home/amt/Màn\\ hình\\ nền/R36S/App_AMTube_Source/amtube_backend.sh --category \"" + mappedCategory + "\"";
+    std::string cmd = "./amtube_backend.sh --category \"" + mappedCategory + "\"";
     if (reload) cmd += " --reload";
-    system(cmd.c_str());
+    
+    std::cerr << "[C++ DEBUG] Triggering backend: " << cmd << std::endl;
+    int ret = system(cmd.c_str());
+    std::cerr << "[C++ DEBUG] Backend returned: " << ret << std::endl;
+    
     loadData();
 }
 

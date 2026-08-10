@@ -38,7 +38,7 @@ SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 # Use python3 to handle all the complex API calling, JSON parsing and thumbnail downloading
 python3 -c "
-import sys, json, os, urllib.request, urllib.parse, random
+import sys, json, os, urllib.request, urllib.parse, random, traceback
 
 category = sys.argv[1]
 script_dir = sys.argv[2]
@@ -57,8 +57,12 @@ if category == 'Subscribed':
             print(f'[AMTube] Zapping to Channel: {target_channel}')
             safe_query = urllib.parse.quote(target_channel)
             api_url = f'https://vid.puffyan.us/api/v1/search?q={safe_query}&type=video'
+        else:
+            api_url = 'https://vid.puffyan.us/api/v1/popular'
     except Exception as e:
         print(f'[AMTube] Error reading channels.txt: {e}')
+        traceback.print_exc()
+        api_url = 'https://vid.puffyan.us/api/v1/popular'
 elif category != 'Trending':
     # Search API
     safe_query = urllib.parse.quote(category)
@@ -71,6 +75,7 @@ try:
         data = json.loads(html)
 except Exception as e:
     print(f'[AMTube] Error fetching API: {e}')
+    traceback.print_exc()
     # Ghi file rỗng hoặc báo lỗi cho C++ biết
     with open(output_file, 'w') as f:
         f.write('ERROR|NO_INTERNET|Check WiFi Connection|/tmp/error.jpg\n')
@@ -120,6 +125,9 @@ with open(output_file, 'w', encoding='utf-8') as out_f:
             os.system(f'curl -sL \"{thumb_url}\" -o \"{local_thumb}\"')
             
         count += 1
+except Exception as e:
+    print(f'[AMTube] Error parsing videos or downloading thumbs: {e}')
+    traceback.print_exc()
 
 print(f'[AMTube] Successfully parsed and downloaded {count} videos.')
 " "$CATEGORY" "$SCRIPT_DIR"
