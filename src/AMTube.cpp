@@ -173,9 +173,9 @@ SDL_Renderer* ren  = nullptr;
 CustomFont    fBig, fSm;
 std::vector<Video> vids;
 int sel=0; bool run=true;
-std::string cat="Subscribed";
+std::string cat="Kênh Đăng Ký";
 State st=LIST;
-std::vector<std::string> menu={"Subscribed","Trending","Lofi Music","Gaming","News","Exit"};
+std::vector<std::string> menu={"Kênh Đăng Ký","Thịnh Hành","Nhạc Lofi","Trò Chơi","Tin Tức","Thoát"};
 int mi=0;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -204,9 +204,15 @@ void loadData() {
 
 void backend(bool reload) {
     SDL_SetRenderDrawColor(ren,20,20,20,255); SDL_RenderClear(ren);
-    fBig.draw(ren,180,230,"ZAPPING... Fetching data...",{255,255,255,255});
+    fBig.draw(ren,120,230,"Đang chuyển kênh... Đang tải dữ liệu...",{255,255,255,255});
     SDL_RenderPresent(ren);
-    std::string m=cat; if(m=="Kenh Dang Ky")m="Subscribed";
+    std::string m=cat; 
+    if(m=="Kênh Đăng Ký") m="Subscribed";
+    else if(m=="Thịnh Hành") m="Trending";
+    else if(m=="Nhạc Lofi") m="Lofi Music";
+    else if(m=="Trò Chơi") m="Gaming";
+    else if(m=="Tin Tức") m="News";
+    
     std::string cmd="./amtube_backend.sh --category \""+m+"\"";
     if(reload)cmd+=" --reload";
     std::cerr<<"[CMD] "<<cmd<<std::endl;
@@ -223,11 +229,11 @@ void drawMenu() {
     SDL_Rect box={bx,by,bw,bh};
     SDL_SetRenderDrawColor(ren,40,40,40,255); SDL_RenderFillRect(ren,&box);
     SDL_SetRenderDrawColor(ren,255,255,255,255); SDL_RenderDrawRect(ren,&box);
-    fBig.draw(ren,bx+50,by+20,"--- CATEGORY ---",{255,200,0,255});
+    fBig.draw(ren,bx+50,by+20,"--- THỂ LOẠI ---",{255,200,0,255});
     for(int i=0;i<(int)menu.size();i++){
         int iy=by+52+i*30;
         if(i==mi){SDL_Rect h={bx+10,iy-2,bw-20,28};SDL_SetRenderDrawColor(ren,100,100,100,255);SDL_RenderFillRect(ren,&h);}
-        SDL_Color c=(menu[i]=="Exit")?SDL_Color{255,50,50,255}:SDL_Color{255,255,255,255};
+        SDL_Color c=(menu[i]=="Thoát")?SDL_Color{255,50,50,255}:SDL_Color{255,255,255,255};
         fBig.draw(ren,bx+20,iy+16,menu[i],c);
     }
 }
@@ -236,7 +242,7 @@ void drawFrame() {
     SDL_SetRenderDrawColor(ren,20,20,20,255); SDL_RenderClear(ren);
     SDL_Rect hdr={0,0,W,40}; SDL_SetRenderDrawColor(ren,30,30,30,255); SDL_RenderFillRect(ren,&hdr);
     fBig.draw(ren,10,28,"AMTube - "+cat,{255,255,255,255});
-    fSm.draw(ren,380,26,"Y:MENU X:RELOAD A:PLAY",{180,180,180,255});
+    fSm.draw(ren,340,26,"Y:DANH MỤC X:TẢI LẠI A:PHÁT",{180,180,180,255});
     int sy=50,ih=90,si=sel-1; if(si<0)si=0;
     for(int i=si;i<si+4&&i<(int)vids.size();i++){
         int dy=sy+(i-si)*ih;
@@ -250,7 +256,7 @@ void drawFrame() {
     if(st==MENU) drawMenu();
     else if(st==PLAYING){
         SDL_SetRenderDrawColor(ren,0,0,0,255); SDL_RenderClear(ren);
-        fBig.draw(ren,150,230,"Playing MPV... Press B to stop.",{255,255,255,255});
+        fBig.draw(ren,150,230,"Đang phát Video... Bấm B để dừng.",{255,255,255,255});
     }
     SDL_RenderPresent(ren);
 }
@@ -307,16 +313,16 @@ int main(int argc, char* args[]) {
                     switch(b){
                         case 0: // A - Confirm/Play
                             if(st==MENU){
-                                if(menu[mi]=="Exit"){run=false;}
+                                if(menu[mi]=="Thoát"){run=false;}
                                 else{cat=menu[mi];st=LIST;backend(false);}
                             } else if(st==LIST&&!vids.empty()){
                                 st=PLAYING;
                                 for(auto&v:vids)if(v.tex){SDL_DestroyTexture(v.tex);v.tex=nullptr;}
                                 SDL_SetRenderDrawColor(ren,0,0,0,255); SDL_RenderClear(ren);
-                                fBig.draw(ren,150,230,"Resolving Stream URL... Please Wait!",{255,255,255,255});
+                                fBig.draw(ren,150,230,"Đang lấy luồng Video... Vui lòng đợi!",{255,255,255,255});
                                 SDL_RenderPresent(ren);
 
-                                std::string fetch_cmd = "if [ -f ./yt-dlp ]; then ./yt-dlp -g -f \"bestvideo[height<=?480]+bestaudio/best\" \"https://youtube.com/watch?v="+vids[sel].id+"\"; else ./youtube-dl -g -f \"bestvideo[height<=?480]+bestaudio/best\" \"https://youtube.com/watch?v="+vids[sel].id+"\"; fi";
+                                std::string fetch_cmd = "if [ -f ./yt-dlp ]; then ./yt-dlp --no-check-certificate -g -f \"bestvideo[height<=?480]+bestaudio/best\" \"https://youtube.com/watch?v="+vids[sel].id+"\"; else ./youtube-dl --no-check-certificate -g -f \"bestvideo[height<=?480]+bestaudio/best\" \"https://youtube.com/watch?v="+vids[sel].id+"\"; fi";
                                 FILE* pipe = popen(fetch_cmd.c_str(), "r");
                                 std::string raw_url = "";
                                 if (pipe) {
