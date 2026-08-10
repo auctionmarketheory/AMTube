@@ -33,4 +33,6 @@ jobs:
             AMTube
             amtube_backend.sh
             amtube_channels.txt
+            font.ttf
+            yt-dlp
             res
