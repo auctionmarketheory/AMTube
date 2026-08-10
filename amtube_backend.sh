@@ -43,38 +43,55 @@ thumb_dir = "$THUMB_DIR"
 output_file = "$OUTPUT_FILE"
 channel_file = os.path.join(script_dir, 'amtube_channels.txt')
 
-api_url = 'https://vid.puffyan.us/api/v1/popular'
+# Fallback list - try in order until one works
+INVIDIOUS_INSTANCES = [
+    "yewtu.be",
+    "inv.bp.projectsegfau.lt",
+    "invidious.privacydev.net",
+    "vid.puffyan.us",
+]
 
-if category == 'Subscribed':
+def try_fetch(url):
+    req = urllib.request.Request(url, headers={'User-Agent': 'AMTube/1.0 (Retro Handheld)'})
+    with urllib.request.urlopen(req, timeout=12) as r:
+        return json.loads(r.read().decode('utf-8'))
+
+def build_url(host, category, channel_file):
+    if category == 'Subscribed':
+        try:
+            with open(channel_file, 'r', encoding='utf-8') as f:
+                lines = [l.strip() for l in f.readlines() if l.strip()]
+            if lines:
+                target = random.choice(lines)
+                print(f'[AMTube] Zapping to Channel: {target}')
+                q = urllib.parse.quote(target)
+                return f'https://{host}/api/v1/search?q={q}&type=video'
+        except Exception as e:
+            print(f'[AMTube] Cannot read channels.txt: {e}')
+        return f'https://{host}/api/v1/popular'
+    elif category == 'Trending':
+        return f'https://{host}/api/v1/popular'
+    else:
+        q = urllib.parse.quote(category)
+        return f'https://{host}/api/v1/search?q={q}&type=video'
+
+# Try each instance until success
+data = None
+for host in INVIDIOUS_INSTANCES:
+    url = build_url(host, category, channel_file)
+    print(f'[AMTube] Trying: {url}')
     try:
-        with open(channel_file, 'r', encoding='utf-8') as f:
-            lines = [l.strip() for l in f.readlines() if l.strip()]
-        if lines:
-            target_channel = random.choice(lines)
-            print(f'[AMTube] Zapping to Channel: {target_channel}')
-            safe_query = urllib.parse.quote(target_channel)
-            api_url = f'https://vid.puffyan.us/api/v1/search?q={safe_query}&type=video'
-        else:
-            api_url = 'https://vid.puffyan.us/api/v1/popular'
+        data = try_fetch(url)
+        print(f'[AMTube] Success with {host}')
+        break
     except Exception as e:
-        print(f'[AMTube] Error reading channels.txt: {e}')
-        traceback.print_exc()
-        api_url = 'https://vid.puffyan.us/api/v1/popular'
-elif category != 'Trending':
-    safe_query = urllib.parse.quote(category)
-    api_url = f'https://vid.puffyan.us/api/v1/search?q={safe_query}&type=video'
+        print(f'[AMTube] {host} failed: {e}')
+        continue
 
-print(f'[AMTube] API URL: {api_url}')
-
-try:
-    req = urllib.request.Request(api_url, headers={'User-Agent': 'AMTube/1.0 (Retro Handheld)'})
-    with urllib.request.urlopen(req, timeout=15) as response:
-        data = json.loads(response.read().decode('utf-8'))
-except Exception as e:
-    print(f'[AMTube] Error fetching API: {e}')
-    traceback.print_exc()
+if data is None:
+    print('[AMTube] All instances failed. No internet or all servers down.')
     with open(output_file, 'w') as f:
-        f.write('ERROR|NO_INTERNET|Check WiFi|/tmp/error.jpg\n')
+        f.write('ERROR|NO INTERNET|Check WiFi - All servers failed|/tmp/error.jpg\n')
     sys.exit(1)
 
 videos = []
@@ -126,7 +143,7 @@ except Exception as e:
     print(f'[AMTube] Error writing output: {e}')
     traceback.print_exc()
 
-print(f'[AMTube] Done. {count} videos saved to {output_file}')
+print(f'[AMTube] Done. {count} videos saved.')
 PYEOF
 
 exit 0

@@ -214,29 +214,41 @@ int main(int argc, char* args[]) {
             }
 
             else if(e.type==SDL_JOYBUTTONDOWN){
-                std::cerr<<"[BTN] "<<(int)e.jbutton.button<<std::endl;
-                switch(e.jbutton.button){
-                    case 0: // A - Confirm/Play
-                        if(st==MENU){
-                            if(menu[mi]=="Exit"){run=false;}
-                            else{cat=menu[mi];st=LIST;backend(false);}
-                        } else if(st==LIST&&!vids.empty()){
-                            st=PLAYING;
-                            for(auto&v:vids)if(v.tex){SDL_DestroyTexture(v.tex);v.tex=nullptr;}
-                            std::string cmd="mpv --fs 'https://youtube.com/watch?v="+vids[sel].id+"' &";
-                            system(cmd.c_str());
-                        }
-                        break;
-                    case 1: // B - Back
-                        if(st==MENU){st=LIST;}
-                        else if(st==PLAYING){system("killall -9 mpv");st=LIST;loadData();}
-                        break;
-                    case 2: // X - Reload/Zap
-                        if(st==LIST)backend(true);
-                        break;
-                    case 3: // Y - Menu
-                        if(st==LIST)st=MENU;
-                        break;
+                int b = (int)e.jbutton.button;
+                // R36S Clone: A=0,B=1,X=2,Y=3 | DPad: UP=13,DOWN=14,LEFT=15,RIGHT=16
+                bool up   = (b==13);
+                bool down = (b==14);
+
+                if (up) {
+                    if(st==LIST&&sel>0)sel--;
+                    else if(st==MENU&&mi>0)mi--;
+                } else if (down) {
+                    if(st==LIST&&sel<(int)vids.size()-1)sel++;
+                    else if(st==MENU&&mi<(int)menu.size()-1)mi++;
+                } else {
+                    switch(b){
+                        case 0: // A - Confirm/Play
+                            if(st==MENU){
+                                if(menu[mi]=="Exit"){run=false;}
+                                else{cat=menu[mi];st=LIST;backend(false);}
+                            } else if(st==LIST&&!vids.empty()){
+                                st=PLAYING;
+                                for(auto&v:vids)if(v.tex){SDL_DestroyTexture(v.tex);v.tex=nullptr;}
+                                std::string cmd="mpv --fs 'https://youtube.com/watch?v="+vids[sel].id+"' &";
+                                system(cmd.c_str());
+                            }
+                            break;
+                        case 1: // B - Back
+                            if(st==MENU){st=LIST;}
+                            else if(st==PLAYING){system("killall -9 mpv");st=LIST;loadData();}
+                            break;
+                        case 2: // X - Reload/Zap
+                            if(st==LIST)backend(true);
+                            break;
+                        case 3: // Y - Menu
+                            if(st==LIST)st=MENU;
+                            break;
+                    }
                 }
             }
 
