@@ -8,6 +8,7 @@
 #include <string>
 #include <vector>
 #include <cstdlib>
+#include <unistd.h>
 
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
@@ -344,13 +345,26 @@ int main(int argc, char* args[]) {
                                     std::string vid_url = (nl != std::string::npos) ? raw_url.substr(0, nl) : raw_url;
                                     std::string aud_url = (nl != std::string::npos) ? raw_url.substr(nl+1) : "";
                                     
-                                    system("echo 'ENTER cycle pause' > /tmp/mpv_input.conf");
+                                    system("echo 'JOY_BTN1 quit' > /tmp/mpv_input.conf");
+                                    system("echo 'ESC quit' >> /tmp/mpv_input.conf");
+                                    system("echo 'ENTER cycle pause' >> /tmp/mpv_input.conf");
                                     
-                                    // [Phase 18] Trảm A/V Sync: Cắt đứt liên kết đồng hồ phần cứng của ALSA
-                                    std::string cmd="SDL_AUDIODRIVER=alsa mpv --vo=sdl --ao=sdl --video-sync=desync --audio-pitch-correction=no --audio-format=s16 --audio-samplerate=44100 --input-conf=/tmp/mpv_input.conf --fs '"+vid_url+"'";
+                                    // [Phase 19] The DRM Handover: Tự hủy SDL Context để nhường quyền DRM Master cho MPV
+                                    for(auto&v:vids) if(v.tex) SDL_DestroyTexture(v.tex);
+                                    vids.clear();
+                                    fBig.cache.clear(); fSm.cache.clear();
+                                    SDL_DestroyRenderer(ren);
+                                    SDL_DestroyWindow(win);
+                                    SDL_Quit();
+
+                                    std::string cmd="SDL_AUDIODRIVER=alsa mpv --vo=sdl --ao=sdl --joystick --audio-format=s16 --audio-samplerate=44100 --input-conf=/tmp/mpv_input.conf --fs '"+vid_url+"'";
                                     if(!aud_url.empty()) cmd += " --audio-file='"+aud_url+"'";
-                                    cmd += " &";
                                     system(cmd.c_str());
+
+                                    // Sau khi xem xong, tự khởi động lại AMTube
+                                    char* args[] = {(char*)"./AMTube", NULL};
+                                    execv("./AMTube", args);
+                                    exit(0);
                                 } else {
                                     st=LIST;
                                     backend(false);
