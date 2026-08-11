@@ -357,7 +357,7 @@ int main(int argc, char* args[]) {
                                     SDL_DestroyWindow(win);
                                     SDL_Quit();
 
-                                    std::string cmd="SDL_AUDIODRIVER=alsa mpv --vo=sdl --ao=sdl --joystick --audio-format=s16 --audio-samplerate=44100 --input-conf=/tmp/mpv_input.conf --fs '"+vid_url+"'";
+                                    std::string cmd="SDL_AUDIODRIVER=alsa mpv --vo=sdl --ao=sdl --audio-format=s16 --audio-samplerate=44100 --input-conf=/tmp/mpv_input.conf --fs '"+vid_url+"'";
                                     if(!aud_url.empty()) cmd += " --audio-file='"+aud_url+"'";
                                     system(cmd.c_str());
 
