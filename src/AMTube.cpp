@@ -345,10 +345,11 @@ int main(int argc, char* args[]) {
                                     std::string vid_url = (nl != std::string::npos) ? raw_url.substr(0, nl) : raw_url;
                                     std::string aud_url = (nl != std::string::npos) ? raw_url.substr(nl+1) : "";
                                     
-                                    // Phase 20: Tối giản - Trả lại nguyên trạng chuẩn của hệ thống
-                                    std::string cmd="mpv --vo=sdl --ao=sdl --audio-format=s16 --audio-samplerate=44100 --fs '"+vid_url+"'";
-                                    if(!aud_url.empty()) cmd += " --audio-file='"+aud_url+"'";
-                                    cmd += " &";
+                                    // Phase 12.3: Baseline Video Only
+                                    system("echo 'JOY_BTN1 quit' > /tmp/mpv_input.conf");
+                                    system("echo 'ESC quit' >> /tmp/mpv_input.conf");
+                                    system("echo 'ENTER cycle pause' >> /tmp/mpv_input.conf");
+                                    std::string cmd="mpv --vo=sdl --no-audio --input-conf=/tmp/mpv_input.conf --fs '"+vid_url+"' &";
                                     system(cmd.c_str());
 
                                     // AMTube ở lại chạy nền để gác cửa (Watchdog) chờ phím B
