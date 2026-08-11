@@ -346,9 +346,8 @@ int main(int argc, char* args[]) {
                                     
                                     system("echo 'ENTER cycle pause' > /tmp/mpv_input.conf");
                                     
-                                    // [Phase 14] The ALSA Plug Fix: Đánh lừa MPV bằng ALSA Software Plugin, trỏ thẳng vào hw:0,0
-                                    system("echo 'pcm.!default { type plug; slave.pcm \"hw:0,0\" }' > /tmp/asound.conf");
-                                    std::string cmd="ALSA_CONFIG_PATH=/tmp/asound.conf mpv --vo=sdl --ao=alsa --audio-format=s16 --audio-buffer=0.04 --input-conf=/tmp/mpv_input.conf --fs '"+vid_url+"'";
+                                    // [Phase 15] Native ALSA Bypass: Dùng bộ đệm `default` (plug->hw) của HĐH, không đè ALSA_CONFIG_PATH
+                                    std::string cmd="mpv --vo=sdl --ao=alsa --audio-format=s16 --audio-samplerate=44100 --audio-buffer=0.04 --input-conf=/tmp/mpv_input.conf --fs '"+vid_url+"'";
                                     if(!aud_url.empty()) cmd += " --audio-file='"+aud_url+"'";
                                     cmd += " &";
                                     system(cmd.c_str());
