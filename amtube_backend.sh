@@ -70,7 +70,7 @@ req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0 (Windows N
 
 try:
     with urllib.request.urlopen(req, timeout=15, context=ssl_ctx) as r:
-        html = r.read().decode('utf-8')
+        html = r.read().decode('utf-8', errors='ignore')
 except Exception as e:
     print(f'[AMTube] Error fetching YouTube: {e}')
     traceback.print_exc()
