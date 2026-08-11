@@ -346,8 +346,8 @@ int main(int argc, char* args[]) {
                                     
                                     system("echo 'ENTER cycle pause' > /tmp/mpv_input.conf");
                                     
-                                    // [Phase 16] The Buffer Unchain: Tháo cùm buffer để ALSA plug tự tung tự tác, diệt INT_MAX Deadlock
-                                    std::string cmd="mpv --vo=sdl --ao=alsa --audio-format=s16 --audio-samplerate=44100 --input-conf=/tmp/mpv_input.conf --fs '"+vid_url+"'";
+                                    // [Phase 17] The True SDL Audio: Cách ly môi trường, tiêm SDL_AUDIODRIVER=alsa chỉ cho MPV, dùng ao=sdl, tháo cùm buffer
+                                    std::string cmd="SDL_AUDIODRIVER=alsa mpv --vo=sdl --ao=sdl --audio-format=s16 --audio-samplerate=44100 --input-conf=/tmp/mpv_input.conf --fs '"+vid_url+"'";
                                     if(!aud_url.empty()) cmd += " --audio-file='"+aud_url+"'";
                                     cmd += " &";
                                     system(cmd.c_str());
