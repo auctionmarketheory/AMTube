@@ -263,6 +263,9 @@ void drawFrame() {
 
 // ── Main ──────────────────────────────────────────────────────────────────────
 int main(int argc, char* args[]) {
+    // [Phase 13] Ép SDL2 dùng ALSA để né lỗi cờ PulseAudio ảo của hệ điều hành
+    setenv("SDL_AUDIODRIVER", "alsa", 1);
+    
     if(SDL_Init(SDL_INIT_VIDEO|SDL_INIT_JOYSTICK)<0){std::cerr<<"SDL_Init: "<<SDL_GetError()<<std::endl;return 1;}
     if(SDL_NumJoysticks()>0)SDL_JoystickOpen(0);
     win=SDL_CreateWindow("AMTube",SDL_WINDOWPOS_UNDEFINED,SDL_WINDOWPOS_UNDEFINED,W,H,SDL_WINDOW_SHOWN);
@@ -345,8 +348,9 @@ int main(int argc, char* args[]) {
                                     std::string aud_url = (nl != std::string::npos) ? raw_url.substr(nl+1) : "";
                                     
                                     system("echo 'ENTER cycle pause' > /tmp/mpv_input.conf");
-                                    system("echo 'pcm.!default { type plug; slave.pcm \"sysdefault:CARD=audiocodec\" }' > /tmp/asound.conf");
-                                    std::string cmd="ALSA_CONFIG_PATH=/tmp/asound.conf mpv --vo=sdl --ao=alsa --audio-samplerate=48000 --audio-format=s16 --alsa-resample=no --video-sync=display-resample --input-conf=/tmp/mpv_input.conf --fs '"+vid_url+"'";
+                                    
+                                    // [Phase 13] The True Option B: Dùng SDL Audio + Bóp Buffer 8KB + S16
+                                    std::string cmd="mpv --vo=sdl --ao=sdl --audio-format=s16 --audio-samplerate=48000 --audio-buffer=0.04 --input-conf=/tmp/mpv_input.conf --fs '"+vid_url+"'";
                                     if(!aud_url.empty()) cmd += " --audio-file='"+aud_url+"'";
                                     cmd += " &";
                                     system(cmd.c_str());
