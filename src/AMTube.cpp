@@ -345,7 +345,7 @@ int main(int argc, char* args[]) {
                                     std::string aud_url = (nl != std::string::npos) ? raw_url.substr(nl+1) : "";
                                     
                                     system("echo 'ENTER cycle pause' > /tmp/mpv_input.conf");
-                                    std::string cmd="mpv --ao=alsa --audio-device=alsa/playback --vo=sdl --input-conf=/tmp/mpv_input.conf --fs '"+vid_url+"'";
+                                    std::string cmd="mpv --ao=sdl --audio-buffer=0.08 --vo=sdl --input-conf=/tmp/mpv_input.conf --fs '"+vid_url+"'";
                                     if(!aud_url.empty()) cmd += " --audio-file='"+aud_url+"'";
                                     cmd += " &";
                                     system(cmd.c_str());
