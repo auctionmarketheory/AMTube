@@ -345,7 +345,7 @@ int main(int argc, char* args[]) {
                                     std::string aud_url = (nl != std::string::npos) ? raw_url.substr(nl+1) : "";
                                     
                                     system("echo 'ENTER cycle pause' > /tmp/mpv_input.conf");
-                                    system("echo 'pcm.!default { type plug; slave.pcm \"hw:0,0\" } ctl.!default { type hw; card 0 }' > /tmp/asound.conf");
+                                    system("echo 'pcm.!default { type plug; slave.pcm \"sysdefault:CARD=audiocodec\" }' > /tmp/asound.conf");
                                     std::string cmd="ALSA_CONFIG_PATH=/tmp/asound.conf mpv --vo=sdl --ao=alsa --audio-samplerate=48000 --audio-format=s16 --alsa-resample=no --video-sync=display-resample --input-conf=/tmp/mpv_input.conf --fs '"+vid_url+"'";
                                     if(!aud_url.empty()) cmd += " --audio-file='"+aud_url+"'";
                                     cmd += " &";
