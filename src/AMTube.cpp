@@ -345,11 +345,10 @@ int main(int argc, char* args[]) {
                                     std::string vid_url = (nl != std::string::npos) ? raw_url.substr(0, nl) : raw_url;
                                     std::string aud_url = (nl != std::string::npos) ? raw_url.substr(nl+1) : "";
                                     
-                                    // Phase 13.6 (Test 3): Thuyết DMIX Bug
-                                    // system("systemctl stop pulseaudio; amixer -q set Master,0 100% unmute");
-
-                                    // Ép AUDIODEV=hw:0,0 để SDL cắm thẳng vào mạch điện, né plugin trộn âm dmix rác
-                                    std::string cmd="AUDIODEV=hw:0,0 SDL_AUDIODRIVER=alsa ffplay -fs -autoexit '"+vid_url+"' >> AMTube_Log.txt 2>&1 &";
+                                    // Phase 13.7 (Test 4): VSYNC/DRM Jitter Test
+                                    // Thuyết cuối cùng: Hễ gọi Video là Audio bị sốc điện chết.
+                                    // Bịt mắt ffplay bằng -nodisp để xem Audio có sống lại không.
+                                    std::string cmd="SDL_AUDIODRIVER=alsa ffplay -nodisp -autoexit '"+vid_url+"' >> AMTube_Log.txt 2>&1 &";
                                     system(cmd.c_str());
 
                                     // AMTube ở lại chạy nền để gác cửa (Watchdog) chờ phím B
