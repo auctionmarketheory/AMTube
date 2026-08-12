@@ -345,24 +345,37 @@ int main(int argc, char* args[]) {
                                     std::string vid_url = (nl != std::string::npos) ? raw_url.substr(0, nl) : raw_url;
                                     std::string aud_url = (nl != std::string::npos) ? raw_url.substr(nl+1) : "";
                                     
-                                    // Phase 13.7 (Test 4): VSYNC/DRM Jitter Test
-                                    // Thuyết cuối cùng: Hễ gọi Video là Audio bị sốc điện chết.
-                                    // Bịt mắt ffplay bằng -nodisp để xem Audio có sống lại không.
-                                    std::string cmd="SDL_AUDIODRIVER=alsa ffplay -nodisp -autoexit '"+vid_url+"' >> AMTube_Log.txt 2>&1 &";
+                                    // Phase 20 - Golden Fix: Hardware Audio Backdoor
+                                    // Goc re: SDL_Init(VIDEO) lam Jitter -> Audio DMA chet. 
+                                    // Giai phap: Ban Soc dien truoc khi ffplay chay, de hoi sinh DMA.
+                                    system("echo '2,0x07,0xf4' > /sys/devices/platform/sunxi-pcm-codec/audio_reg_debug/audio_reg");
+                                    system("amixer cset name='Speaker Function' headset");
+                                    system("amixer cset name='Speaker Function' spk");
+
+                                    // Phuc hoi hinh anh: Xoa -nodisp (Video ffplay vo toi, anh DMA moi la can)
+                                    std::string cmd="SDL_AUDIODRIVER=alsa ffplay -autoexit '"+vid_url+"' >> AMTube_Log.txt 2>&1 &";
                                     system(cmd.c_str());
 
-                                    // AMTube ở lại chạy nền để gác cửa (Watchdog) chờ phím B
+                                    // AMTube o lai chay nen de gac cua (Watchdog) cho phim B
                                     bool player_running = true;
                                     while (player_running) {
                                         SDL_Event e;
                                         while(SDL_PollEvent(&e)) {
-                                            if(e.type == SDL_JOYBUTTONDOWN && (int)e.jbutton.button == 1) { // Phím B
+                                            if(e.type == SDL_JOYBUTTONDOWN && (int)e.jbutton.button == 1) { // Phim B
                                                 system("killall -9 ffplay");
+                                                // Soc dien lan 2: Cuu lai am thanh cho EmulationStation sau khi ffplay thoat
+                                                system("echo '2,0x07,0xf4' > /sys/devices/platform/sunxi-pcm-codec/audio_reg_debug/audio_reg");
+                                                system("amixer cset name='Speaker Function' headset");
+                                                system("amixer cset name='Speaker Function' spk");
                                                 player_running = false;
                                             }
                                         }
                                         SDL_Delay(50);
                                     }
+                                    // Soc dien lan 2 (truong hop ffplay tu thoat khi het video)
+                                    system("echo '2,0x07,0xf4' > /sys/devices/platform/sunxi-pcm-codec/audio_reg_debug/audio_reg");
+                                    system("amixer cset name='Speaker Function' headset");
+                                    system("amixer cset name='Speaker Function' spk");
                                     
                                     st=LIST;
                                     loadData();
