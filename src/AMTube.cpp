@@ -353,7 +353,8 @@ int main(int argc, char* args[]) {
                                     system("amixer cset name='Speaker Function' spk");
 
                                     // Phuc hoi hinh anh: Xoa -nodisp (Video ffplay vo toi, anh DMA moi la can)
-                                    std::string cmd="SDL_AUDIODRIVER=alsa ffplay -autoexit '"+vid_url+"' >> AMTube_Log.txt 2>&1 &";
+                                    // -fs: fullscreen, -vf scale=640:480: ep scale vua man hinh R36S 640x480
+                                    std::string cmd="SDL_AUDIODRIVER=alsa ffplay -fs -vf scale=640:480 -autoexit '"+vid_url+"' >> AMTube_Log.txt 2>&1 &";
                                     system(cmd.c_str());
 
                                     // AMTube o lai chay nen de gac cua (Watchdog) cho phim B
