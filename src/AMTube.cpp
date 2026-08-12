@@ -345,12 +345,11 @@ int main(int argc, char* args[]) {
                                     std::string vid_url = (nl != std::string::npos) ? raw_url.substr(0, nl) : raw_url;
                                     std::string aud_url = (nl != std::string::npos) ? raw_url.substr(nl+1) : "";
                                     
-                                    // Phase 13.4 (Test 1): Giết PulseAudio và Mở khóa ALSA Master Mute
-                                    // Bơm quyền tối thượng của RetroArch vào AMTube
-                                    system("systemctl stop pulseaudio");
-                                    system("amixer -q set Master,0 100% unmute");
+                                    // Phase 13.5 (Test 2): XRUN Deadlock Test (Local File)
+                                    // system("systemctl stop pulseaudio; amixer -q set Master,0 100% unmute");
 
-                                    std::string cmd="SDL_AUDIODRIVER=alsa ffplay -fs -autoexit '"+vid_url+"' >> AMTube_Log.txt 2>&1 &";
+                                    // Ép ffplay phát file nội bộ thay vì URL mạng để cắt đứt độ trễ mạng
+                                    std::string cmd="SDL_AUDIODRIVER=alsa ffplay -fs -autoexit test.mp4 >> AMTube_Log.txt 2>&1 &";
                                     system(cmd.c_str());
 
                                     // AMTube ở lại chạy nền để gác cửa (Watchdog) chờ phím B
