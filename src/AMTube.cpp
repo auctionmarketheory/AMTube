@@ -345,9 +345,9 @@ int main(int argc, char* args[]) {
                                     std::string vid_url = (nl != std::string::npos) ? raw_url.substr(0, nl) : raw_url;
                                     std::string aud_url = (nl != std::string::npos) ? raw_url.substr(nl+1) : "";
                                     
-                                    // Phase 13 (ffplay): Thử ffplay thay mpv
-                                    // ffplay tự nhiên dùng S16+SDL2+buffer~2048frames = đúng vùng an toàn A33
-                                    std::string cmd="ffplay -fs -autoexit -loglevel quiet '"+vid_url+"' &";
+                                    // Phase 13.2 (ffplay debug): Ép ALSA và bật log
+                                    // ffplay tự nhiên dùng S16+SDL2+buffer~2048frames
+                                    std::string cmd="SDL_AUDIODRIVER=alsa ffplay -fs -autoexit '"+vid_url+"' >> /run/media/amt/EASYROMS/ports/AMTube/AMTube_Log.txt 2>&1 &";
                                     system(cmd.c_str());
 
                                     // AMTube ở lại chạy nền để gác cửa (Watchdog) chờ phím B
