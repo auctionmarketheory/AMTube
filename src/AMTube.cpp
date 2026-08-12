@@ -345,21 +345,19 @@ int main(int argc, char* args[]) {
                                     std::string vid_url = (nl != std::string::npos) ? raw_url.substr(0, nl) : raw_url;
                                     std::string aud_url = (nl != std::string::npos) ? raw_url.substr(nl+1) : "";
                                     
-                                    // Phase 12.3: Baseline Video Only
-                                    system("echo 'JOY_BTN1 quit' > /tmp/mpv_input.conf");
-                                    system("echo 'ESC quit' >> /tmp/mpv_input.conf");
-                                    system("echo 'ENTER cycle pause' >> /tmp/mpv_input.conf");
-                                    std::string cmd="mpv --vo=sdl --no-audio --input-conf=/tmp/mpv_input.conf --fs '"+vid_url+"' &";
+                                    // Phase 13 (ffplay): Thử ffplay thay mpv
+                                    // ffplay tự nhiên dùng S16+SDL2+buffer~2048frames = đúng vùng an toàn A33
+                                    std::string cmd="ffplay -fs -autoexit -loglevel quiet '"+vid_url+"' &";
                                     system(cmd.c_str());
 
                                     // AMTube ở lại chạy nền để gác cửa (Watchdog) chờ phím B
-                                    bool mpv_running = true;
-                                    while (mpv_running) {
+                                    bool player_running = true;
+                                    while (player_running) {
                                         SDL_Event e;
                                         while(SDL_PollEvent(&e)) {
                                             if(e.type == SDL_JOYBUTTONDOWN && (int)e.jbutton.button == 1) { // Phím B
-                                                system("killall -9 mpv");
-                                                mpv_running = false;
+                                                system("killall -9 ffplay");
+                                                player_running = false;
                                             }
                                         }
                                         SDL_Delay(50);
@@ -375,7 +373,7 @@ int main(int argc, char* args[]) {
                             break;
                         case 1: // B - Back
                             if(st==MENU){st=LIST;}
-                            else if(st==PLAYING){system("killall -9 mpv");st=LIST;loadData();}
+                            else if(st==PLAYING){system("killall -9 ffplay");st=LIST;loadData();}
                             break;
                         case 2: // X - Reload/Zap
                             if(st==LIST)backend(true);
