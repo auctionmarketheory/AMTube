@@ -345,26 +345,20 @@ int main(int argc, char* args[]) {
                                     std::string vid_url = (nl != std::string::npos) ? raw_url.substr(0, nl) : raw_url;
                                     std::string aud_url = (nl != std::string::npos) ? raw_url.substr(nl+1) : "";
                                     
-                                    // Phase 13.2 (ffplay debug): Ép ALSA và bật log
-                                    // Sửa lỗi đường dẫn: dùng đường dẫn tương đối thay vì absolute path của PC
-                                    std::string cmd="SDL_AUDIODRIVER=alsa ffplay -fs -autoexit '"+vid_url+"' >> AMTube_Log.txt 2>&1 &";
+                                    // Phase 13.3 (DRM Handover Test): Tự sát để nhường DRM Master cho ffplay
+                                    std::string cmd="SDL_AUDIODRIVER=alsa ffplay -fs -autoexit '"+vid_url+"' >> AMTube_Log.txt 2>&1";
+                                    
+                                    // 1. Tự hủy toàn bộ SDL của AMTube để nhả VSYNC/DRM
+                                    SDL_DestroyRenderer(ren);
+                                    SDL_DestroyWindow(win);
+                                    SDL_Quit();
+
+                                    // 2. Chạy ffplay Foreground (Block cho đến khi thoát)
                                     system(cmd.c_str());
 
-                                    // AMTube ở lại chạy nền để gác cửa (Watchdog) chờ phím B
-                                    bool player_running = true;
-                                    while (player_running) {
-                                        SDL_Event e;
-                                        while(SDL_PollEvent(&e)) {
-                                            if(e.type == SDL_JOYBUTTONDOWN && (int)e.jbutton.button == 1) { // Phím B
-                                                system("killall -9 ffplay");
-                                                player_running = false;
-                                            }
-                                        }
-                                        SDL_Delay(50);
-                                    }
-                                    
-                                    st=LIST;
-                                    loadData();
+                                    // 3. ffplay thoát (do hết video hoặc bấm phím B/ESC), AMTube tự sát luôn. 
+                                    // Nếu tiếng kêu -> Thuyết DRM Master chính xác 100%. User chịu khó mở lại app để test.
+                                    exit(0);
                                 } else {
                                     st=LIST;
                                     backend(false);
