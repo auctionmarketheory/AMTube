@@ -345,20 +345,29 @@ int main(int argc, char* args[]) {
                                     std::string vid_url = (nl != std::string::npos) ? raw_url.substr(0, nl) : raw_url;
                                     std::string aud_url = (nl != std::string::npos) ? raw_url.substr(nl+1) : "";
                                     
-                                    // Phase 13.3 (DRM Handover Test): Tự sát để nhường DRM Master cho ffplay
-                                    std::string cmd="SDL_AUDIODRIVER=alsa ffplay -fs -autoexit '"+vid_url+"' >> AMTube_Log.txt 2>&1";
-                                    
-                                    // 1. Tự hủy toàn bộ SDL của AMTube để nhả VSYNC/DRM
-                                    SDL_DestroyRenderer(ren);
-                                    SDL_DestroyWindow(win);
-                                    SDL_Quit();
+                                    // Phase 13.4 (Test 1): Giết PulseAudio và Mở khóa ALSA Master Mute
+                                    // Bơm quyền tối thượng của RetroArch vào AMTube
+                                    system("systemctl stop pulseaudio");
+                                    system("amixer -q set Master,0 100% unmute");
 
-                                    // 2. Chạy ffplay Foreground (Block cho đến khi thoát)
+                                    std::string cmd="SDL_AUDIODRIVER=alsa ffplay -fs -autoexit '"+vid_url+"' >> AMTube_Log.txt 2>&1 &";
                                     system(cmd.c_str());
 
-                                    // 3. ffplay thoát (do hết video hoặc bấm phím B/ESC), AMTube tự sát luôn. 
-                                    // Nếu tiếng kêu -> Thuyết DRM Master chính xác 100%. User chịu khó mở lại app để test.
-                                    exit(0);
+                                    // AMTube ở lại chạy nền để gác cửa (Watchdog) chờ phím B
+                                    bool player_running = true;
+                                    while (player_running) {
+                                        SDL_Event e;
+                                        while(SDL_PollEvent(&e)) {
+                                            if(e.type == SDL_JOYBUTTONDOWN && (int)e.jbutton.button == 1) { // Phím B
+                                                system("killall -9 ffplay");
+                                                player_running = false;
+                                            }
+                                        }
+                                        SDL_Delay(50);
+                                    }
+                                    
+                                    st=LIST;
+                                    loadData();
                                 } else {
                                     st=LIST;
                                     backend(false);
